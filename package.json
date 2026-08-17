@@ -1,0 +1,14 @@
+{
+  "name": "tianming-advisor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "天命顾问 — 个人决策咨询 Skill（八字+星盘+健壮性系统+国学）",
+  "scripts": {
+    "chart": "node scripts/chart.js",
+    "astro": "node scripts/astro.js"
+  },
+  "dependencies": {
+    "astronomia": "^4.2.0",
+    "js-yaml": "^4.1.0"
+  }
+}
