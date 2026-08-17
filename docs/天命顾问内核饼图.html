@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>天命顾问 · 内核构成</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #0f1626;
+    color: #e8e8e8;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    background: #16203a;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 32px 36px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.45);
+    max-width: 860px;
+    width: 100%;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: #f4c95d;
+    text-align: center;
+    margin-bottom: 6px;
+  }
+  .sub {
+    text-align: center;
+    color: #9aa7c7;
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
+  .chart-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 36px;
+    flex-wrap: wrap;
+  }
+  svg { display: block; }
+  .slice {
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    transform-box: fill-box;
+    transform-origin: center;
+    cursor: pointer;
+    opacity: 0;
+  }
+  .slice.revealed { opacity: 1; }
+  .slice:hover {
+    transform: scale(1.06);
+    filter: brightness(1.25) drop-shadow(0 0 12px rgba(255,255,255,0.25));
+  }
+  .legend { display: flex; flex-direction: column; gap: 10px; min-width: 240px; }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    transition: background 0.2s;
+    cursor: pointer;
+  }
+  .legend-item:hover { background: rgba(255,255,255,0.06); }
+  .legend-item .dot {
+    width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0;
+  }
+  .legend-item .pct { margin-left: auto; color: #f4c95d; font-weight: 600; }
+  .legend-item .name { color: #cbd6ee; }
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: rgba(10,15,30,0.92);
+    border: 1px solid #f4c95d;
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    display: none;
+    z-index: 10;
+    max-width: 260px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  .center-label {
+    font-size: 13px;
+    fill: #9aa7c7;
+    text-anchor: middle;
+  }
+  .center-num { font-size: 26px; font-weight: 700; fill: #f4c95d; text-anchor: middle; }
+  .center-eng { font-size: 11px; fill: #6f7ea3; text-anchor: middle; letter-spacing: 2px; }
+  .footer { margin-top: 18px; text-align: center; font-size: 11px; color: #5f6d8f; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>天命顾问 · 内核构成</h1>
+    <div class="sub">七层输入，综合成一份决策建议（示意比例）</div>
+    <div class="chart-wrap">
+      <svg id="chart" width="340" height="340" viewBox="0 0 340 340">
+        <g id="slices"></g>
+        <text class="center-eng" x="170" y="158" >TIANMING</text>
+        <text class="center-num" x="170" y="188">七层合一</text>
+        <text class="center-label" x="170" y="210">7 个维度 → 1 份建议</text>
+      </svg>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="footer">比例按对最终建议的塑造权重示意，非实测 · 可改</div>
+  </div>
+  <div id="tooltip"></div>
+
+<script>
+  const data = [
+    { name: "八字命理", eng: "十神 / 大运流年 / 格局旺衰", value: 20, color: "#e05252", detail: "scripts/chart.js 确定性排盘，看时机与天性底色" },
+    { name: "西洋星盘", eng: "太阳 / 月亮 / 上升", value: 15, color: "#f09a3e", detail: "scripts/astro.js，太阳想走 / 月亮要稳 / 上升在敲门" },
+    { name: "国学框架", eng: "易经 / 道德经 / 孙子兵法", value: 20, color: "#2bb3a3", detail: "原文→白话→决策用法，给高密度决策视角" },
+    { name: "健壮性认知系统", eng: "你的方法论", value: 20, color: "#3f8ef0", detail: "根/叶、过拟合/健壮、三检验——决策必须引用" },
+    { name: "MBTI 人格档案", eng: "ENFJ-T", value: 10, color: "#9b6bd4", detail: "识别判断偏差：区分事实犹豫 vs 内耗噪音" },
+    { name: "霍兰德职业代码", eng: "RAS", value: 10, color: "#43b85f", detail: "把命理术语翻译成现代人格语言" },
+    { name: "驱动 + 特质", eng: "drivers / traits", value: 5, color: "#7f8fa6", detail: "你的动机来源与特性，建议往你的驱动上靠" }
+  ];
+  const total = data.reduce((s, d) => s + d.value, 0);
+
+  const svg = document.getElementById('chart');
+  const slicesG = document.getElementById('slices');
+  const legendEl = document.getElementById('legend');
+  const tooltip = document.getElementById('tooltip');
+
+  const cx = 170, cy = 170, r = 118;
+  const RAD = Math.PI / 180;
+  function pt(angleDeg, radius) {
+    const a = (angleDeg - 90) * RAD;
+    return { x: cx + radius * Math.cos(a), y: cy + radius * Math.sin(a) };
+  }
+  function arcPath(start, end) {
+    const s = pt(start, r), e = pt(end, r);
+    const large = (end - start) > 180 ? 1 : 0;
+    return `M ${s.x.toFixed(2)} ${s.y.toFixed(2)} A ${r} ${r} 0 ${large} 1 ${e.x.toFixed(2)} ${e.y.toFixed(2)} L ${cx} ${cy} Z`;
+  }
+
+  let angle = 0;
+  const slices = data.map((d, i) => {
+    const start = angle;
+    angle += (d.value / total) * 360;
+    const end = angle;
+    const mid = (start + end) / 2;
+    const dir = pt(mid, 1);
+    return { ...d, start, end, mid, dx: dir.x - cx, dy: dir.y - cy };
+  });
+
+  // 绘制扇形
+  slices.forEach((d, i) => {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', arcPath(d.start, d.end));
+    path.setAttribute('fill', d.color);
+    path.setAttribute('stroke', '#16203a');
+    path.setAttribute('stroke-width', '2');
+    path.classList.add('slice');
+    path.style.transitionDelay = (i * 0.09) + 's';
+    path.addEventListener('mouseenter', (e) => showTip(d, e));
+    path.addEventListener('mousemove', moveTip);
+    path.addEventListener('mouseleave', hideTip);
+    slicesG.appendChild(path);
+  });
+
+  // 图例
+  slices.forEach((d) => {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<span class="dot" style="background:${d.color}"></span><span class="name">${d.name}</span><span class="pct">${d.value}%</span>`;
+    item.addEventListener('mouseenter', (e) => showTip(d, e));
+    item.addEventListener('mousemove', moveTip);
+    item.addEventListener('mouseleave', hideTip);
+    legendEl.appendChild(item);
+  });
+
+  // 入场动画：逐块浮出
+  setTimeout(() => {
+    document.querySelectorAll('.slice').forEach(p => p.classList.add('revealed'));
+  }, 200);
+
+  // 提示框
+  function showTip(d, e) {
+    tooltip.innerHTML = `<b>${d.name}</b>（${d.value}%）<br>${d.eng}<br><span style="color:#9aa7c7">${d.detail}</span>`;
+    tooltip.style.display = 'block';
+    moveTip(e);
+  }
+  function moveTip(e) {
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top = (e.clientY + 14) + 'px';
+  }
+  function hideTip() { tooltip.style.display = 'none'; }
+</script>
+</body>
+</html>

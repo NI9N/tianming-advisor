@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>天命顾问 · 内核流水线</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #0f1626;
+    color: #e8e8e8;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 60px;
+  }
+  .card {
+    background: #16203a;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    padding: 28px 30px 22px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.45);
+    width: 780px;
+    max-width: calc(100vw - 320px);
+  }
+  h1 { font-size: 21px; color: #f4c95d; text-align: center; letter-spacing: 1px; }
+  .sub { text-align: center; color: #9aa7c7; font-size: 13px; margin-bottom: 18px; }
+  .stage { position: relative; }
+  #lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  line { stroke-width: 2; stroke: #4a5a85; }
+
+  .qbox {
+    width: 62%; margin: 6px auto 0;
+    border: 2px solid #f4c95d;
+    background: rgba(244,201,93,0.08);
+    border-radius: 14px;
+    padding: 14px 10px;
+    text-align: center;
+    font-size: 15px;
+    opacity: 0; transform: translateY(8px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .qbox .num { color: #f4c95d; font-weight: 600; }
+  .qbox .hint { display: block; color: #9aa7c7; font-size: 12px; margin-top: 4px; }
+  .q-persona {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(244,201,93,0.14); border: 1px solid rgba(244,201,93,0.4);
+    border-radius: 30px; padding: 3px 14px 3px 4px; margin-bottom: 9px;
+    font-size: 13px; color: #f4c95d; font-weight: 600;
+  }
+  .q-persona .p-avatar {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #f4c95d; color: #0f1626;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; flex-shrink: 0;
+  }
+  .q-persona small { color: #9aa7c7; font-weight: 400; font-size: 11px; }
+
+  .mid { display: flex; gap: 24px; margin-top: 52px; }
+  .col {
+    flex: 1; border-radius: 16px; padding: 14px 14px 16px;
+    border: 1px solid rgba(255,255,255,0.10);
+    opacity: 0; transform: translateY(10px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .col.l { background: rgba(224,82,82,0.07); border-color: rgba(224,82,82,0.4); }
+  .col.r { background: rgba(63,142,240,0.07); border-color: rgba(63,142,240,0.4); }
+  .col-h { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+  .col.l .col-h { color: #e05252; }
+  .col.r .col-h { color: #3f8ef0; }
+  .col-h small { display: block; color: #9aa7c7; font-weight: 400; font-size: 11px; margin-top: 2px; }
+  .item {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 13px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.4s ease, transform 0.4s ease, background 0.2s, border-color 0.2s;
+  }
+  .item:hover { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.25); }
+  .item small { display: block; color: #7f8db0; font-size: 11px; margin-top: 2px; }
+
+  .outbox {
+    width: 74%; margin: 60px auto 0;
+    border: 2px solid #f4c95d;
+    background: rgba(244,201,93,0.10);
+    border-radius: 16px;
+    padding: 16px 12px;
+    text-align: center;
+    opacity: 0; transform: scale(0.92);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .outbox .t { font-size: 16px; font-weight: 700; color: #f4c95d; }
+  .outbox .tags { margin-top: 8px; display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
+  .tag {
+    font-size: 11px; padding: 3px 8px; border-radius: 20px;
+    background: rgba(255,255,255,0.06); color: #cbd6ee;
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+  .outbox .verdict {
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px dashed rgba(244,201,93,0.3);
+    color: #cbd6ee; font-size: 12.5px; line-height: 1.6;
+  }
+  .outbox .verdict b { color: #f4c95d; }
+  .hint-bar { margin-top: 22px; text-align: center; color: #5f6d8f; font-size: 11px; }
+
+  /* 右侧分步控制面板 */
+  .side {
+    position: fixed;
+    right: 28px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 5;
+    background: #16203a;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 18px 16px;
+    width: 220px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.45);
+  }
+  .side h2 { font-size: 14px; color: #f4c95d; letter-spacing: 1px; margin-bottom: 12px; text-align: center; }
+  .step-list { display: flex; flex-direction: column; gap: 8px; }
+  .step-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12.5px; color: #7f8db0; padding: 8px 10px;
+    border-radius: 9px; border: 1px solid transparent;
+    transition: all 0.3s ease;
+  }
+  .step-item .num {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: rgba(255,255,255,0.07); color: #9aa7c7;
+    font-size: 11px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-item.done { color: #9aa7c7; }
+  .step-item.done .num { background: rgba(63,142,240,0.25); color: #3f8ef0; }
+  .step-item.active { border-color: #f4c95d; background: rgba(244,201,93,0.08); color: #f4c95d; }
+  .step-item.active .num { background: #f4c95d; color: #0f1626; font-weight: 700; }
+  .progress { margin-top: 12px; text-align: center; color: #9aa7c7; font-size: 12px; }
+  #next {
+    margin-top: 14px; width: 100%; padding: 9px 0;
+    background: transparent; color: #f4c95d; border: 1px solid #f4c95d;
+    border-radius: 20px; font-size: 13px; cursor: pointer;
+    transition: background 0.2s;
+  }
+  #next:hover { background: rgba(244,201,93,0.15); }
+  .side-hint { margin-top: 10px; text-align: center; color: #5f6d8f; font-size: 11px; line-height: 1.6; }
+
+  @media (max-width: 1240px) {
+    .wrap { flex-wrap: wrap; gap: 22px; }
+    .side { position: static; transform: none; }
+  }
+
+  #tip {
+    position: fixed; pointer-events: none; display: none; z-index: 10;
+    background: rgba(10,15,30,0.94); border: 1px solid #f4c95d; color: #fff;
+    padding: 8px 14px; border-radius: 10px; font-size: 12px; line-height: 1.5;
+    max-width: 240px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>天命顾问 · 内核流水线</h1>
+      <div class="sub">张三（虚构）的一个问题 → 七层输入 → 一份建议</div>
+
+      <div class="stage" id="stage">
+        <svg id="lines"></svg>
+
+        <div class="qbox" id="qbox">
+          <div class="q-persona"><span class="p-avatar">张</span>张三<small>虚构 · 男 · 1990-07-20 09:30 · 北京</small></div>
+          <span class="num">① 你问</span>「该不该辞掉稳定的工作，转去做自由职业？」
+          <span class="hint">决策类问题：该不该 / 适不适合 / 方向对不对 / 时机判断</span>
+        </div>
+
+        <div class="mid">
+          <div class="col l" id="colL">
+            <div class="col-h">② 算 · 确定性引擎<small>scripts/chart.js + astro.js · 不靠 AI 猜</small></div>
+            <div class="item" data-tip="scripts/chart.js 排盘：看时机与天性底色"><b>八字命理</b><small>庚午 / 癸未 / 丙戌 / 癸巳 · 伤官格 · 日主丙</small></div>
+            <div class="item" data-tip="scripts/astro.js：太阳想走 / 月亮要稳 / 上升在敲门"><b>西洋星盘</b><small>太阳巨蟹 27° / 月亮双子 29° / 上升处女 19°</small></div>
+          </div>
+          <div class="col r" id="colR">
+            <div class="col-h">③ 读你 · 可插拔参考层<small>config.yaml + references/ · 你能换成自己的</small></div>
+            <div class="item" data-tip="你的方法论（根/叶、过拟合/健壮、三检验）"><b>健壮性认知系统</b><small>决策必须引用</small></div>
+            <div class="item" data-tip="易经（时位中正）/ 道德经（顺势知止）/ 孙子兵法（先胜后战）"><b>国学框架</b><small>原文 → 决策用法</small></div>
+            <div class="item" data-tip="识别判断偏差：区分事实犹豫 vs 内耗噪音"><b>MBTI 人格档案</b><small>ENFJ-T · 动荡型自我怀疑</small></div>
+            <div class="item" data-tip="把命理术语翻译成现代人格语言"><b>霍兰德职业代码</b><small>RAS</small></div>
+            <div class="item" data-tip="你的动机来源与特性，建议往驱动上靠"><b>驱动 + 特质</b><small>drivers / traits</small></div>
+          </div>
+        </div>
+
+        <div class="outbox" id="outbox">
+          <div class="t">④ 五段式建议 · 张三</div>
+          <div class="tags">
+            <span class="tag">① 时机 · 宜动先备</span><span class="tag">② 匹配 · 想动怕动</span>
+            <span class="tag">③ 风险 · 缺退路验证</span><span class="tag">④ 建议 · 不裸辞先小步验证</span>
+            <span class="tag">⑤ 三检验 · 通简活</span>
+          </div>
+          <div class="verdict">一句话：<b>「先为不可胜，以待敌之可胜」</b>（孙子兵法）→ 留职接一个付费小单，走通闭环、攒 3-6 个月缓冲，再决定全押</div>
+        </div>
+      </div>
+
+      <div class="hint-bar">悬停任一节点看说明 · 本页为虚构演示（张三），数据均非真实用户</div>
+    </div>
+
+    <div class="side">
+      <h2>分步演示</h2>
+      <div class="step-list" id="stepList"></div>
+      <div class="progress" id="progress">第 1 / 4 步</div>
+      <button id="next">下一步 →</button>
+      <div class="side-hint">点一步播一步，讲给你的观众看</div>
+    </div>
+  </div>
+  <div id="tip"></div>
+
+<script>
+  const stage = document.getElementById('stage');
+  const svg = document.getElementById('lines');
+  const NS = 'http://www.w3.org/2000/svg';
+  const tip = document.getElementById('tip');
+
+  const qbox = document.getElementById('qbox');
+  const colL = document.getElementById('colL');
+  const colR = document.getElementById('colR');
+  const outbox = document.getElementById('outbox');
+  const lItems = colL.querySelectorAll('.item');
+  const rItems = colR.querySelectorAll('.item');
+  const allItems = [...lItems, ...rItems];
+
+  const stepNames = ['你问「该不该做 X」', '算 · 确定性引擎', '读你 · 可插拔参考层', '五段式建议 + 免责'];
+  const stepList = document.getElementById('stepList');
+  const progress = document.getElementById('progress');
+  const btnNext = document.getElementById('next');
+  let stepEls = [];
+  stepNames.forEach((name, i) => {
+    const el = document.createElement('div');
+    el.className = 'step-item';
+    el.innerHTML = `<span class="num">${i + 1}</span><span>${name}</span>`;
+    stepList.appendChild(el);
+    stepEls.push(el);
+  });
+
+  let lines = [];
+  let current = -1;
+  let timers = [];
+
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  function after(ms, fn) { timers.push(setTimeout(fn, ms)); }
+
+  function rect(el) {
+    const s = stage.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    return { x: r.left - s.left, y: r.top - s.top, w: r.width, h: r.height };
+  }
+
+  function makeLine(x1,y1,x2,y2,color) {
+    const l = document.createElementNS(NS, 'line');
+    l.setAttribute('x1', x1); l.setAttribute('y1', y1);
+    l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+    l.setAttribute('pathLength', 1);
+    l.setAttribute('stroke', color || '#4a5a85');
+    l.style.strokeDasharray = '1';
+    l.style.strokeDashoffset = 1;
+    svg.appendChild(l);
+    return l;
+  }
+  function draw(l, delay) { after(delay, () => { l.style.transition = 'stroke-dashoffset 0.45s ease'; l.style.strokeDashoffset = 0; }); }
+  function drawInstant(l) { l.style.transition = 'none'; l.style.strokeDashoffset = 0; }
+  function flow(l, delay, dur) {
+    after(delay, () => {
+      l.style.transition = 'none';
+      l.style.strokeDasharray = '0.06 0.94';
+      l.style.strokeDashoffset = 0;
+      l.animate(
+        [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }],
+        { duration: dur || 900, iterations: Infinity, easing: 'linear' }
+      );
+    });
+  }
+
+  function layout() {
+    const s = stage.getBoundingClientRect();
+    svg.setAttribute('width', s.width);
+    svg.setAttribute('height', s.height);
+    svg.innerHTML = '';
+    lines = [];
+
+    const q = rect(qbox);
+    const L = rect(colL);
+    const R = rect(colR);
+    const O = rect(outbox);
+
+    const qc = { x: q.x + q.w/2, y: q.y + q.h };
+    const lTop = { x: L.x + L.w/2, y: L.y };
+    const rTop = { x: R.x + R.w/2, y: R.y };
+
+    lines.push(makeLine(qc.x, qc.y, lTop.x, lTop.y, '#f4c95d'));
+    lines.push(makeLine(qc.x, qc.y, rTop.x, rTop.y, '#f4c95d'));
+
+    const fans = 7;
+    for (let i = 0; i < allItems.length; i++) {
+      const ir = rect(allItems[i]);
+      const src = { x: ir.x + ir.w/2, y: ir.y + ir.h };
+      const t = i / (fans - 1);
+      const dst = { x: O.x + 16 + t * (O.w - 32), y: O.y };
+      lines.push(makeLine(src.x, src.y, dst.x, dst.y, '#4a5a85'));
+    }
+  }
+
+  function resetNodes() {
+    [qbox, colL, colR, outbox].forEach(el => { el.style.opacity = 0; el.style.transform = ''; });
+    allItems.forEach(el => { el.style.opacity = 0; el.style.transform = ''; });
+  }
+
+  function updateUI() {
+    stepEls.forEach((el, i) => {
+      el.classList.toggle('active', i === current);
+      el.classList.toggle('done', i < current);
+    });
+    progress.textContent = `第 ${current + 1} / 4 步`;
+    btnNext.textContent = current === 3 ? '↻ 重播' : '下一步 →';
+  }
+
+  function showStage(step) {
+    clearTimers();
+    current = step;
+    updateUI();
+
+    if (step === 0) {
+      after(100, () => { qbox.style.opacity = 1; qbox.style.transform = 'translateY(0)'; });
+    } else if (step === 1) {
+      draw(lines[0], 300);
+      after(420, () => { colL.style.opacity = 1; colL.style.transform = 'translateY(0)'; });
+      lItems.forEach((el, i) => after(560 + i * 120, () => { el.style.opacity = 1; el.style.transform = 'translateY(0)'; }));
+    } else if (step === 2) {
+      draw(lines[1], 300);
+      after(420, () => { colR.style.opacity = 1; colR.style.transform = 'translateY(0)'; });
+      rItems.forEach((el, i) => after(560 + i * 110, () => { el.style.opacity = 1; el.style.transform = 'translateY(0)'; }));
+    } else if (step === 3) {
+      const n = lines.length - 2;
+      lines.slice(2).forEach((l, i) => draw(l, 300 + i * 120));
+      after(360 + n * 120, () => { outbox.style.opacity = 1; outbox.style.transform = 'scale(1)'; });
+      after(470 + n * 120, () => lines.slice(2).forEach((l, i) => flow(l, i * 60, 700 + i * 40)));
+    }
+  }
+
+  // 窗口尺寸变化时重排连线，并保持当前步骤的已播状态
+  function renderStatic() {
+    clearTimers();
+    if (current < 0) return;
+    if (current >= 0) { qbox.style.opacity = 1; qbox.style.transform = 'translateY(0)'; }
+    if (current >= 1) {
+      colL.style.opacity = 1; colL.style.transform = 'translateY(0)';
+      lItems.forEach(el => { el.style.opacity = 1; el.style.transform = 'translateY(0)'; });
+      drawInstant(lines[0]);
+    }
+    if (current >= 2) {
+      colR.style.opacity = 1; colR.style.transform = 'translateY(0)';
+      rItems.forEach(el => { el.style.opacity = 1; el.style.transform = 'translateY(0)'; });
+      drawInstant(lines[1]);
+    }
+    if (current >= 3) {
+      outbox.style.opacity = 1; outbox.style.transform = 'scale(1)';
+      lines.slice(2).forEach(drawInstant);
+      lines.slice(2).forEach((l, i) => flow(l, i * 60, 700 + i * 40));
+    }
+  }
+
+  function init() {
+    layout();
+    resetNodes();
+    showStage(0);
+  }
+
+  btnNext.addEventListener('click', () => {
+    if (current === 3) { init(); }
+    else { showStage(current + 1); }
+  });
+
+  // 提示框
+  function showTip(el) {
+    tip.innerHTML = el.dataset.tip;
+    tip.style.display = 'block';
+    el.addEventListener('mousemove', moveTip);
+  }
+  function hideTip(el) {
+    tip.style.display = 'none';
+    el.removeEventListener('mousemove', moveTip);
+  }
+  function moveTip(e) {
+    tip.style.left = (e.clientX + 14) + 'px';
+    tip.style.top = (e.clientY + 14) + 'px';
+  }
+  allItems.forEach(el => {
+    el.addEventListener('mouseenter', () => showTip(el));
+    el.addEventListener('mouseleave', () => hideTip(el));
+  });
+
+  window.addEventListener('resize', () => { layout(); renderStatic(); });
+  init();
+</script>
+</body>
+</html>
