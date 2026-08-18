@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>{{m.question}} · 决策咨询报告</title>
+<style>
+  :root {
+    --paper: #f5f1e8;
+    --paper-deep: #ebe5d5;
+    --paper-card: #faf6ec;
+    --ink: #2b2825;
+    --ink-soft: #6b6660;
+    --ink-faint: #a8a298;
+    --vermillion: #c1432f;
+    --vermillion-deep: #8e2f20;
+    --azure: #2e6da4;
+    --jade: #4a7c4e;
+    --jade-soft: #6f9971;
+    --obsidian: #1a1a1a;
+    --line: #8b8378;
+    --line-soft: #c4bdb0;
+    --line-faint: #e0d9c8;
+    --warn: #c97c3a;
+    --warn-bg: #faf1e2;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Source Han Serif SC", "Noto Serif SC", "STSong", serif;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  body {
+    background-image:
+      radial-gradient(circle at 15% 25%, rgba(180,160,130,0.06), transparent 50%),
+      radial-gradient(circle at 85% 75%, rgba(180,160,130,0.05), transparent 50%);
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .num { font-family: "JetBrains Mono", "IBM Plex Mono", "Courier New", monospace; }
+
+  .report {
+    max-width: 1080px;
+    margin: 0 auto;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.06);
+    padding: 28px;
+  }
+
+  /* ============ HEADER ============ */
+  .header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 16px;
+    align-items: start;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--line-soft);
+    margin-bottom: 20px;
+  }
+  .seal {
+    width: 44px; height: 44px;
+    border: 1.5px solid var(--vermillion);
+    color: var(--vermillion);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    font-size: 11px; letter-spacing: 2px; line-height: 1.1;
+    transform: rotate(-3deg);
+  }
+  .title-block h1 {
+    font-size: 30px; margin: 0 0 6px;
+    letter-spacing: 4px; font-weight: normal;
+  }
+  .title-block .subtitle {
+    font-size: 13px; color: var(--ink-soft);
+    letter-spacing: 1px;
+  }
+  .header-right {
+    text-align: right;
+    font-size: 11px; color: var(--ink-soft);
+  }
+  .header-right .gen-time { margin-bottom: 6px; }
+  .header-right .meta-row {
+    display: flex; gap: 12px; justify-content: flex-end;
+    margin-top: 4px; font-size: 12px;
+  }
+  .header-right .meta-row span { color: var(--ink); }
+  .header-right .meta-row b { color: var(--vermillion); font-weight: normal; }
+  .badge-grade {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border: 1px solid var(--jade);
+    color: var(--jade); border-radius: 3px;
+    font-size: 12px; margin-top: 6px;
+  }
+
+  /* ============ 命盘背景条 ============ */
+  .section-title {
+    font-size: 14px; font-weight: bold;
+    margin: 0 0 10px; color: var(--ink);
+    letter-spacing: 1px;
+  }
+  .decision-strip {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .data-card {
+    background: var(--paper-card);
+    border: 1px solid var(--line-soft);
+    padding: 10px 12px;
+    text-align: center;
+    position: relative;
+  }
+  .data-card .label { font-size: 11px; color: var(--ink-soft); margin-bottom: 4px; }
+  .data-card .value { font-size: 18px; color: var(--ink); margin: 4px 0; line-height: 1.3; }
+  .data-card .value.small { font-size: 15px; }
+  .data-card .score {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--vermillion); font-size: 14px;
+  }
+  .data-card .conf {
+    font-size: 10px; color: var(--ink-faint); margin-top: 2px;
+    line-height: 1.5;
+  }
+  .data-card .pillars { font-size: 16px; letter-spacing: 1px; }
+
+  /* ============ 编号章节 ============ */
+  .section {
+    background: var(--paper); border: 1px solid var(--line-soft);
+    padding: 14px 18px;
+    margin-bottom: 14px;
+  }
+  .section h2 {
+    margin: 0 0 10px; font-size: 14px;
+    letter-spacing: 1px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section h2 .num-box {
+    background: var(--ink); color: var(--paper);
+    padding: 2px 6px; border-radius: 2px;
+    font-size: 11px; font-family: "JetBrains Mono", monospace;
+  }
+  .section h2 small { font-size: 11px; color: var(--ink-soft); font-weight: normal; }
+
+  /* ① 时机结论 */
+  .verdict-banner {
+    display: inline-flex; align-items: baseline; gap: 8px;
+    background: var(--paper-card);
+    border: 1px solid var(--vermillion);
+    border-left: 4px solid var(--vermillion);
+    padding: 8px 16px;
+    margin-bottom: 10px;
+    font-size: 13px; letter-spacing: 1px;
+  }
+  .verdict-banner b {
+    font-size: 20px; color: var(--vermillion); font-weight: normal;
+    letter-spacing: 3px;
+  }
+  .axis-conclusion {
+    background: var(--paper-card); border-left: 3px solid var(--azure);
+    padding: 10px 14px; font-size: 12px; line-height: 1.9;
+    color: var(--ink);
+  }
+
+  /* ② 自身匹配 */
+  .match-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .match-card {
+    background: var(--paper-card); border: 1px solid var(--line-soft);
+    padding: 12px 14px;
+  }
+  .match-card .m-label {
+    font-size: 11px; color: var(--vermillion);
+    margin-bottom: 6px; letter-spacing: 1px;
+  }
+  .match-card .m-text { font-size: 12px; line-height: 1.8; color: var(--ink); }
+
+  /* ③ 风险 */
+  .risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .risk-card {
+    background: var(--paper-card); border: 1px solid var(--line-soft);
+    padding: 12px 14px;
+  }
+  .risk-card .r-head { font-size: 12px; font-weight: bold; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .risk-card .r-head .tag { font-size: 10px; color: var(--vermillion); border: 1px solid var(--vermillion); border-radius: 2px; padding: 0 4px; font-weight: normal; }
+  .risk-card .r-text { font-size: 12px; line-height: 1.8; color: var(--ink-soft); }
+  .risk-card .r-text b { color: var(--ink); }
+
+  /* ④ 决策建议 */
+  .quote-block {
+    background: var(--warn-bg); border-left: 3px solid var(--warn);
+    padding: 12px 16px; margin-bottom: 12px;
+  }
+  .quote-block .q-src { font-size: 11px; color: var(--warn); letter-spacing: 1px; }
+  .quote-block .q-text { font-size: 14px; color: var(--ink); margin-top: 4px; line-height: 1.9; }
+  .steps-list { list-style: none; padding: 0; margin: 0 0 12px; font-size: 12px; counter-reset: step; }
+  .steps-list li {
+    counter-increment: step;
+    position: relative; padding-left: 26px;
+    margin-bottom: 8px; line-height: 1.7;
+  }
+  .steps-list li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 1px;
+    width: 17px; height: 17px;
+    border: 1px solid var(--azure); color: var(--azure);
+    border-radius: 50%; text-align: center; line-height: 15px;
+    font-size: 10px; font-family: "JetBrains Mono", monospace;
+  }
+  .first-step {
+    background: var(--paper-card); border: 1px dashed var(--jade);
+    padding: 10px 14px; font-size: 12px; line-height: 1.8;
+  }
+  .first-step .fs-label { color: var(--jade); font-weight: bold; }
+
+  /* ⑤ 三检验 */
+  .triple-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .triple-card {
+    background: var(--paper-card); border: 1px solid var(--line-soft);
+    padding: 12px 14px; text-align: center;
+  }
+  .triple-card .t-char { font-size: 20px; color: var(--vermillion); letter-spacing: 2px; margin-bottom: 4px; }
+  .triple-card .t-name { font-size: 12px; font-weight: bold; margin-bottom: 6px; }
+  .triple-card .t-text { font-size: 11px; color: var(--ink-soft); line-height: 1.7; text-align: left; }
+
+  /* footer */
+  .footer-disclaim {
+    text-align: center; font-size: 11px; color: var(--ink-faint);
+    margin-top: 18px; padding: 14px 0;
+    border-top: 1px solid var(--line-soft);
+    display: flex; align-items: center; justify-content: center; gap: 20px;
+  }
+  .footer-disclaim .footer-seal {
+    color: var(--vermillion); border: 1px solid var(--vermillion);
+    padding: 4px 8px; font-size: 11px; letter-spacing: 2px;
+    transform: rotate(-2deg);
+  }
+</style>
+</head>
+<body>
+<div class="report">
+
+  <!-- ============ HEADER ============ -->
+  <header class="header">
+    <div class="seal">天命<br>顾问</div>
+    <div class="title-block">
+      <div style="font-size:10px;color:var(--ink-soft);letter-spacing:2px;margin-bottom:4px">决策咨询报告 · 五段式</div>
+      <h1>{{m.question}}</h1>
+      <div class="subtitle">{{m.subtitle}}</div>
+    </div>
+    <div class="header-right">
+      <div class="gen-time">生成时间：<span class="num">{{m.gen_time}}</span></div>
+      <div>时机倾向</div>
+      <div class="badge-grade">{{m.verdict}}</div>
+      <div class="meta-row">
+        <span>咨询编号：<b>{{m.code}}</b></span>
+        <span>方式：<b>八字+星盘+健壮性</b></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ 命盘背景条 ============ -->
+  <div class="section-title">命盘背景</div>
+  <div class="decision-strip">
+    <div class="data-card">
+      <div class="label">四柱</div>
+      <div class="value pillars">{{c.pillars}}</div>
+    </div>
+    <div class="data-card">
+      <div class="label">日主 · 格局</div>
+      <div class="value">{{c.daymaster_geju}}</div>
+      <div class="conf">十神：{{c.shishen_line}}</div>
+    </div>
+    <div class="data-card">
+      <div class="label">旺衰</div>
+      <div class="value">{{c.wangshuai_verdict}}</div>
+      <div class="score num">{{c.wangshuai_score}}</div>
+      <div class="conf">调候用神：{{c.tiaohou}}</div>
+    </div>
+    <div class="data-card">
+      <div class="label">当前大运</div>
+      <div class="value">{{c.dayun}}</div>
+      <div class="conf">{{c.dayun_note}}</div>
+    </div>
+    <div class="data-card">
+      <div class="label">{{c.liunian_label}}</div>
+      <div class="value">{{c.liunian}}</div>
+      <div class="conf">{{c.liunian_note}}</div>
+    </div>
+    <div class="data-card">
+      <div class="label">星盘</div>
+      <div class="value small">日{{c.sun}} · 月{{c.moon}}<br>升{{c.rising}}</div>
+    </div>
+  </div>
+
+  <!-- ============ ① 时机结论 ============ -->
+  <section class="section">
+    <h2><span class="num-box">01</span>时机结论 <small>命理轨</small></h2>
+    <div class="verdict-banner">结论 <b>{{t.verdict}}</b></div>
+    <div class="axis-conclusion">{{t.text}}</div>
+  </section>
+
+  <!-- ============ ② 自身匹配度 ============ -->
+  <section class="section">
+    <h2><span class="num-box">02</span>自身匹配度 <small>十神 × 人格 × 星盘</small></h2>
+    <div class="match-grid">
+      <div class="match-card">
+        <div class="m-label">{{f1.label}}</div>
+        <div class="m-text">{{f1.text}}</div>
+      </div>
+      <div class="match-card">
+        <div class="m-label">{{f2.label}}</div>
+        <div class="m-text">{{f2.text}}</div>
+      </div>
+      <div class="match-card">
+        <div class="m-label">{{f3.label}}</div>
+        <div class="m-text">{{f3.text}}</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ③ 风险点 ============ -->
+  <section class="section">
+    <h2><span class="num-box">03</span>风险点 <small>依据你的健壮性认知系统</small></h2>
+    <div class="risk-grid">
+      <div class="risk-card">
+        <div class="r-head">{{r1.head}} <span class="tag">{{r1.tag}}</span></div>
+        <div class="r-text">{{r1.text}}</div>
+      </div>
+      <div class="risk-card">
+        <div class="r-head">{{r2.head}} <span class="tag">{{r2.tag}}</span></div>
+        <div class="r-text">{{r2.text}}</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ④ 决策建议 ============ -->
+  <section class="section">
+    <h2><span class="num-box">04</span>决策建议 <small>国学原文 + 落地步骤</small></h2>
+    <div class="quote-block">
+      <div class="q-src">{{a.quote_src}}</div>
+      <div class="q-text">{{a.quote_text}}</div>
+    </div>
+    <ul class="steps-list">{{a.steps}}</ul>
+    <div class="first-step">
+      <span class="fs-label">可做的第一步：</span>{{a.first_step}}
+    </div>
+  </section>
+
+  <!-- ============ ⑤ 三检验自检 ============ -->
+  <section class="section">
+    <h2><span class="num-box">05</span>三检验自检 <small>通 · 简 · 活</small></h2>
+    <div class="triple-grid">
+      <div class="triple-card">
+        <div class="t-char">通</div>
+        <div class="t-name">可迁移</div>
+        <div class="t-text">{{x.tong}}</div>
+      </div>
+      <div class="triple-card">
+        <div class="t-char">简</div>
+        <div class="t-name">骨架化</div>
+        <div class="t-text">{{x.jian}}</div>
+      </div>
+      <div class="triple-card">
+        <div class="t-char">活</div>
+        <div class="t-name">抗冲击</div>
+        <div class="t-text">{{x.huo}}</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <div class="footer-disclaim">
+    <span>命理为传统文化参考，非科学依据；本报告供决策参考，重大决定请结合理性判断与专业意见。</span>
+    <span class="footer-seal">天命<br>顾问</span>
+  </div>
+
+</div>
+</body>
+</html>
