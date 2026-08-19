@@ -44,12 +44,13 @@ description: 个人决策咨询。当用户提出「该不该做X」「现在适
 输出 `{ birth, sun, moon, rising, note }`，每个星体为 `{ sign, longitude, signDegree }`。注意这步依赖 `config.yaml` 的 `location.latitude/longitude`（上升星座计算必需，勿删）。
 
 ### Step 3 — 读取解读框架
-读 `references/` 全部 5 份规则：
-- `shishen.md` — 十神解读（含 十神×MBTI/霍兰德 映射，译成用户能感知的语言）
+读 `references/` 全部 6 份规则：
+- `shishen.md` — 十神解读（含 六亲关系、代表人物、身强身弱喜忌、位置含义、十神×MBTI/霍兰德 映射，译成用户能感知的语言）
 - `dayun-liunian.md` — 大运流年时机（含命盘 JSON 字段说明，与 Step 1 字段对齐）
 - `jianzhuang.md` — 健壮性认知系统（用户原始方法论，决策必须引用并标注「依据你的健壮性认知系统」）
 - `guoxue.md` — 国学决策框架（原文→出处→白话→决策用法，按场景查表）
 - `xingzuo.md` — 星盘解读（太阳/月亮/上升「三方镜」+ 十二星座原型）
+- `wuxing-buyi.md` — 五行补法与调候（五行缺什么怎么补、调候用神、身强身弱调整策略）
 
 ### Step 4 — 综合输出
 按下面的输出模板组织回答。
