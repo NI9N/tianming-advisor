@@ -1,8 +1,9 @@
-// 读取 config.yaml → 真太阳时校正 → 调 engine 排盘 → 输出 bazi JSON
+// 读取 config.yaml → 真太阳时校正(可选) → 调 engine 排盘 → 输出 bazi JSON
 // 引擎版本: dzcmemory-web/bazi-ziwei-skill @ 8fd7dfa
 // 真太阳时校正：包装层基于 location.longitude 计算偏移（每经度 4 分钟），手动调整 hour/minute/day
-//   - 有 location.longitude：做校正
-//   - 无 location.longitude：保持原钟表时间（向后兼容）
+//   - useTraditionalSolar=true（默认）: 做校正
+//   - useTraditionalSolar=false: 保持原钟表时间
+//   - 无 location.longitude: 不管 useTraditionalSolar，都不校正
 const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -41,7 +42,9 @@ function applyTrueSolarTime(birth, longitude) {
   };
 }
 
-const tst = applyTrueSolarTime(b, loc.longitude);
+// useTraditionalSolar 默认 true（传统命理主流做法）。用户可在 PROMPT.md 询问后修改 config.yaml。
+const useTraditionalSolar = config.useTraditionalSolar !== false;
+const tst = useTraditionalSolar ? applyTrueSolarTime(b, loc.longitude) : { birth: b, offsetMinutes: 0, dayDelta: 0, applied: false };
 const adj = tst.birth;
 
 const calculatorDir = path.join(ROOT, 'engine', 'calculator');
@@ -76,6 +79,7 @@ if (!chart || !chart.bazi) {
 console.log(JSON.stringify({
   trueSolarTime: {
     applied: tst.applied,
+    mode: useTraditionalSolar ? 'traditional' : 'clock',
     longitude: loc.longitude,
     offsetMinutes: tst.offsetMinutes,
     dayDelta: tst.dayDelta,
