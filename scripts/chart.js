@@ -1,5 +1,9 @@
-// 读取 config.yaml → 调 engine 排盘 → 输出 bazi JSON（只取需要的字段，省 token）
-// 引擎版本: dzcmemory-web/bazi-ziwei-skill @ 8fd7dfa（排盘基于钟表时间，不做真太阳时校正）
+// 读取 config.yaml → 真太阳时校正(可选) → 调 engine 排盘 → 输出 bazi JSON
+// 引擎版本: dzcmemory-web/bazi-ziwei-skill @ 8fd7dfa
+// 真太阳时校正：包装层基于 location.longitude 计算偏移（每经度 4 分钟），手动调整 hour/minute/day
+//   - useTraditionalSolar=true（默认）: 做校正
+//   - useTraditionalSolar=false: 保持原钟表时间
+//   - 无 location.longitude: 不管 useTraditionalSolar，都不校正
 const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -8,6 +12,40 @@ const yaml = require('js-yaml');
 const ROOT = path.resolve(__dirname, '..');
 const config = yaml.load(fs.readFileSync(path.join(ROOT, 'config.yaml'), 'utf8'));
 const b = config.birth;
+const loc = config.location || {};
+
+// 真太阳时校正函数
+function applyTrueSolarTime(birth, longitude) {
+  if (longitude === undefined || longitude === null || longitude === '') {
+    return { birth, offsetMinutes: 0, dayDelta: 0, applied: false };
+  }
+  const TZ_BASE_LON = 120; // UTC+8 基准经度（北京时对应的中央经线）
+  const offsetMinutes = Math.round((longitude - TZ_BASE_LON) * 4); // 每度 4 分钟
+  let totalMin = birth.hour * 60 + birth.minute + offsetMinutes;
+  let dayDelta = 0;
+  while (totalMin < 0) { totalMin += 1440; dayDelta -= 1; }
+  while (totalMin >= 1440) { totalMin -= 1440; dayDelta += 1; }
+  const base = new Date(birth.year, birth.month - 1, birth.day);
+  base.setDate(base.getDate() + dayDelta);
+  return {
+    birth: {
+      year: base.getFullYear(),
+      month: base.getMonth() + 1,
+      day: base.getDate(),
+      hour: Math.floor(totalMin / 60),
+      minute: totalMin % 60,
+      gender: birth.gender,
+    },
+    offsetMinutes,
+    dayDelta,
+    applied: true,
+  };
+}
+
+// useTraditionalSolar 默认 true（传统命理主流做法）。用户可在 PROMPT.md 询问后修改 config.yaml。
+const useTraditionalSolar = config.useTraditionalSolar !== false;
+const tst = useTraditionalSolar ? applyTrueSolarTime(b, loc.longitude) : { birth: b, offsetMinutes: 0, dayDelta: 0, applied: false };
+const adj = tst.birth;
 
 const calculatorDir = path.join(ROOT, 'engine', 'calculator');
 const engineScript = path.join(calculatorDir, 'dist', 'run-chart.js');
@@ -17,8 +55,8 @@ if (!fs.existsSync(engineScript)) {
 }
 const args = [
   engineScript,
-  `--year=${b.year}`, `--month=${b.month}`, `--day=${b.day}`,
-  `--hour=${b.hour}`, `--minute=${b.minute}`, `--gender=${b.gender}`,
+  `--year=${adj.year}`, `--month=${adj.month}`, `--day=${adj.day}`,
+  `--hour=${adj.hour}`, `--minute=${adj.minute}`, `--gender=${adj.gender}`,
 ];
 let stdout;
 try {
@@ -39,6 +77,14 @@ if (!chart || !chart.bazi) {
   process.exit(1);
 }
 console.log(JSON.stringify({
+  trueSolarTime: {
+    applied: tst.applied,
+    mode: useTraditionalSolar ? 'traditional' : 'clock',
+    longitude: loc.longitude,
+    offsetMinutes: tst.offsetMinutes,
+    dayDelta: tst.dayDelta,
+    adjustedBirth: tst.applied ? { year: adj.year, month: adj.month, day: adj.day, hour: adj.hour, minute: adj.minute } : null,
+  },
   bazi: chart.bazi,
   ziwei: chart.ziwei || null,
 }, null, 2));
