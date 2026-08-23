@@ -44,12 +44,13 @@ description: 个人决策咨询。当用户提出「该不该做X」「现在适
 输出 `{ birth, sun, moon, rising, note }`，每个星体为 `{ sign, longitude, signDegree }`。注意这步依赖 `config.yaml` 的 `location.latitude/longitude`（上升星座计算必需，勿删）。
 
 ### Step 3 — 读取解读框架
-读 `references/` 全部 5 份规则：
-- `shishen.md` — 十神解读（含 十神×MBTI/霍兰德 映射，译成用户能感知的语言）
+读 `references/` 全部 6 份规则：
+- `shishen.md` — 十神解读（含 六亲关系、代表人物、身强身弱喜忌、位置含义、十神×MBTI/霍兰德 映射，译成用户能感知的语言）
 - `dayun-liunian.md` — 大运流年时机（含命盘 JSON 字段说明，与 Step 1 字段对齐）
 - `jianzhuang.md` — 健壮性认知系统（用户原始方法论，决策必须引用并标注「依据你的健壮性认知系统」）
 - `guoxue.md` — 国学决策框架（原文→出处→白话→决策用法，按场景查表）
 - `xingzuo.md` — 星盘解读（太阳/月亮/上升「三方镜」+ 十二星座原型）
+- `wuxing-buyi.md` — 五行补法与调候（五行缺什么怎么补、调候用神、身强身弱调整策略）
 
 ### Step 4 — 综合输出
 按下面的输出模板组织回答。
@@ -140,11 +141,13 @@ node scripts/render-decision.js \
 ### 命盘背景条（六卡）自动推导
 渲染脚本从 `bazi.siZhu / shiShen / enrichment（格局·旺衰·调候用神）/ dayun / liuNian` 与 `astro.sun / moon / rising` 自动填六张卡，无需在 decision.json 里手动写。
 
-## 六、时辰边界说明
+## 六、时辰边界说明（真太阳时校正）
 
-本 skill 八字排盘用**钟表时间**（引擎默认，不做真太阳时校正）。出生地经度来自 `config.yaml` 的 `location.longitude`：出生地相对标准经线 120°E 偏西时，真太阳时比钟表时慢（每偏西 1° 约慢 4 分钟）。若出生时刻恰逢时辰边界（如巳/午、午/未交界），真太阳时校正可能让时辰柱翻到前一柱。
+本 skill 八字排盘**默认启用真太阳时校正**（`chart.js` 的 `useTraditionalSolar` 默认为 `true`，传统命理主流做法）。校正基于 `config.yaml` 的 `location.longitude`：出生地相对标准经线 120°E 每偏西 1°，真太阳时比钟表时慢约 4 分钟（仅按经度差换算，未含均时差 ±16 分钟）。若出生时刻恰逢时辰边界（如巳/午、午/未交界），校正后时辰柱可能翻到前一柱——**这是精准化，不是误差**。
 
-**默认跟随引擎**（用 `config.yaml` 的 `birth.hour` 钟表时排盘）。是否启用真太阳时校正留给用户日后决定；若用户想改，需修改 `config.yaml` 的出生时辰并重新排盘。出生地经纬度用于西洋占星上升星座计算（必需），不受此影响。
+排盘输出顶层的 `trueSolarTime` 给出 `{ applied, mode, longitude, offsetMinutes, dayDelta, adjustedBirth }`，可核对校正后的真实时刻与时辰归属。
+
+**如需关闭校正**（改回钟表时排盘）：在 `config.yaml` 设 `useTraditionalSolar: false` 后重新排盘。出生地经纬度另用于西洋占星上升星座计算（必需），不受此开关影响。
 
 ## 七、风格
 

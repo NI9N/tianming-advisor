@@ -28,7 +28,7 @@
    ├─ scripts/chart.js  → 八字排盘（四柱/十神/大运流年/格局旺衰）
    └─ scripts/astro.js   → 西洋星盘（太阳/月亮/上升）
         ↓
-references/ 五份解读规则（shishen / dayun-liunian / jianzhuang / guoxue / xingzuo）
+references/ 六份解读规则（shishen / dayun-liunian / jianzhuang / guoxue / xingzuo / wuxing-buyi）
         ↓
 SKILL.md 编排五段式输出（①时机 ②自身匹配 ③风险 ④建议+国学原文 ⑤三检验 + 免责）
 ```
@@ -53,8 +53,9 @@ tianming-advisor/
 ├── package.json       依赖：astronomia（星盘）+ js-yaml
 ├── scripts/
 │   ├── chart.js       八字排盘（调排盘引擎，字段实测 camelCase）
-│   └── astro.js       西洋星盘（太阳/月亮/上升，依赖 config.yaml 经纬度）
-├── references/        五份解读规则（十神/大运流年/健壮性/国学/星盘）
+│   ├── astro.js       西洋星盘（太阳/月亮/上升，依赖 config.yaml 经纬度）
+│   └── render-decision.js  决策报告渲染（命盘+decision.json+模板→单文件HTML）
+├── references/        六份解读规则（十神/大运流年/健壮性/国学/星盘/五行补法）
 ├── docs/              两张内核可视化（自包含 HTML，双击可看）
 ├── config.yaml        个人信息（被 .gitignore 排除，不入库）
 └── engine/            排盘引擎（install 时克隆，不入库）
@@ -92,7 +93,7 @@ tianming-advisor/
 
 ## 时辰边界
 
-八字排盘用钟表时间（引擎默认，不做真太阳时校正）。出生地经度来自 `config.yaml`，真太阳时相对钟表时的偏移由出生地经度决定。默认跟随引擎用钟表时；是否启用真太阳时校正见 SKILL.md「时辰边界说明」。
+八字排盘**默认启用真太阳时校正**（`chart.js` 的 `useTraditionalSolar` 默认 `true`）。校正按出生地经度（`config.yaml` 的 `location.longitude`）换算偏移——每偏西标准经线 120°E 一度约慢 4 分钟；出生时刻恰逢时辰边界时，校正可能让时辰柱翻到前一柱，属精准化而非误差。如需改回钟表时排盘，设 `useTraditionalSolar: false`。详见 SKILL.md「时辰边界说明」。
 
 ## 和模板算命差在哪
 
