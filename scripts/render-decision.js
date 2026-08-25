@@ -68,6 +68,27 @@ function runSkillScript(scriptName) {
 
 const PILLAR_KEYS = ['year', 'month', 'day', 'hour'];
 
+// 星曜→人话 简注（渲染层用；与 references/ziwei.md 第二节速查表保持一致，翻译成普通人一眼懂的白话）
+const STAR_GLOSS = {
+  // 十四主星
+  '紫微': '掌控与核心', '天机': '动脑策划', '太阳': '光明付出', '武曲': '实干生财',
+  '天同': '平和松弛', '廉贞': '权变驭局', '天府': '库藏守成', '太阴': '内在滋养',
+  '贪狼': '才艺·社交·扩张', '巨门': '口才表达', '天相': '辅佐协调',
+  '天梁': '荫庇贵人', '七杀': '攻坚破局', '破军': '破旧立新',
+  // 辅星
+  '文昌': '文书才艺', '文曲': '文书才艺',
+  '左辅': '有帮手', '右弼': '有帮手', '天魁': '有贵人', '天钺': '有贵人',
+  '禄存': '财库厚', '天马': '奔波流动',
+  '火星': '带刺压力', '铃星': '带刺压力', '擎羊': '带刺压力', '陀罗': '带刺压力',
+  '地空': '计划易落空', '地劫': '计划易落空',
+  '红鸾': '人际喜庆', '天喜': '人际喜庆'
+};
+
+function glossStars(stars) {
+  if (!stars || !stars.length) return '';
+  return stars.map((s) => (STAR_GLOSS[s] ? `${s}=${STAR_GLOSS[s]}` : s)).join('；');
+}
+
 // 从 chart + astro 推导命盘背景条 (六卡)
 function deriveStrip(chart, astro, currentYear) {
   const out = {};
@@ -141,6 +162,32 @@ function deriveStrip(chart, astro, currentYear) {
   out.moon = signOf(astro?.moon);
   out.rising = signOf(astro?.rising);
 
+  // 紫微：当前大限 + 流年落宫
+  const zw = chart?.ziwei || {};
+  const gongs = zw.gongs || [];
+  const curDaxianGong = gongs.find((g) => g.daXian && g.daXian.isCurrent === true);
+  if (curDaxianGong) {
+    const dx = curDaxianGong.daXian || {};
+    const main = (curDaxianGong.mainStars || []).join(' ');
+    out.daxian = `${dx.startAge}-${dx.endAge}岁 · ${dx.daXianGongName || ''}${main ? ' · ' + main : ''}`;
+    out.daxian_note = glossStars(curDaxianGong.mainStars || []);
+  } else {
+    out.daxian = dash();
+    out.daxian_note = '';
+  }
+  const curGong = gongs.find((g) => g.liuNianYear === currentYear);
+  if (curGong) {
+    const main = (curGong.mainStars || []).join(' ');
+    const aux = (curGong.auxStars || []).slice(0, 2).join('·');
+    const ji = (curGong.sihua || []).filter((s) => s.hua === '化忌').map((s) => s.star + '忌').join('');
+    out.liunian_gong = `${curGong.gong}(${curGong.dizhi})${main ? ' ' + main : ' —'}${aux ? ' · ' + aux : ''}${ji ? ' · ' + ji : ''}`;
+    const noteStars = (curGong.mainStars || []).concat((curGong.auxStars || []).slice(0, 2));
+    out.liunian_gong_note = glossStars(noteStars);
+  } else {
+    out.liunian_gong = dash();
+    out.liunian_gong_note = '';
+  }
+
   return out;
 }
 
@@ -165,7 +212,7 @@ function buildFlat(chart, astro, decision, currentYear) {
   data['m.code'] = meta.code || `TM-${currentYear}${new Date().getMonth() + 1 < 10 ? '0' + (new Date().getMonth() + 1) : new Date().getMonth() + 1}`;
 
   // 命盘背景条
-  for (const k of ['pillars', 'daymaster_geju', 'shishen_line', 'wangshuai_verdict', 'wangshuai_score', 'tiaohou', 'dayun', 'dayun_note', 'liunian_label', 'liunian', 'liunian_note', 'sun', 'moon', 'rising']) {
+  for (const k of ['pillars', 'daymaster_geju', 'shishen_line', 'wangshuai_verdict', 'wangshuai_score', 'tiaohou', 'dayun', 'dayun_note', 'liunian_label', 'liunian', 'liunian_note', 'sun', 'moon', 'rising', 'daxian', 'daxian_note', 'liunian_gong', 'liunian_gong_note']) {
     data[`c.${k}`] = strip[k];
   }
 

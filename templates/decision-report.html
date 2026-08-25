@@ -103,7 +103,7 @@
   }
   .decision-strip {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 8px;
     margin-bottom: 20px;
   }
@@ -256,7 +256,7 @@
       <div class="badge-grade">{{m.verdict}}</div>
       <div class="meta-row">
         <span>咨询编号：<b>{{m.code}}</b></span>
-        <span>方式：<b>八字+星盘+健壮性</b></span>
+        <span>方式：<b>八字+紫微+星盘+健壮性</b></span>
       </div>
     </div>
   </header>
@@ -293,6 +293,16 @@
       <div class="label">星盘</div>
       <div class="value small">日{{c.sun}} · 月{{c.moon}}<br>升{{c.rising}}</div>
     </div>
+    <div class="data-card">
+      <div class="label">紫微 · 当前大限</div>
+      <div class="value small">{{c.daxian}}</div>
+      <div class="conf">{{c.daxian_note}}</div>
+    </div>
+    <div class="data-card">
+      <div class="label">流年命宫落</div>
+      <div class="value small">{{c.liunian_gong}}</div>
+      <div class="conf">{{c.liunian_gong_note}}</div>
+    </div>
   </div>
 
   <!-- ============ ① 时机结论 ============ -->
@@ -304,7 +314,7 @@
 
   <!-- ============ ② 自身匹配度 ============ -->
   <section class="section">
-    <h2><span class="num-box">02</span>自身匹配度 <small>十神 × 人格 × 星盘</small></h2>
+    <h2><span class="num-box">02</span>自身匹配度 <small>十神 × 人格 × 星盘 × 紫微</small></h2>
     <div class="match-grid">
       <div class="match-card">
         <div class="m-label">{{f1.label}}</div>
