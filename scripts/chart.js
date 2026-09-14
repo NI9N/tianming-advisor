@@ -50,8 +50,15 @@ const adj = tst.birth;
 const calculatorDir = path.join(ROOT, 'engine', 'calculator');
 const engineScript = path.join(calculatorDir, 'dist', 'run-chart.js');
 if (!fs.existsSync(engineScript)) {
-  console.error('排盘引擎缺失：' + engineScript + '\n请先运行 install.ps1 拉取引擎（git clone bazi-ziwei-skill）。');
-  process.exit(1);
+  // 引擎缺失 —— 降级而非退出：星盘轨/国学/健壮性认知系统仍可用，只是八字轨算不了。
+  // 输出合法 JSON 并以 0 退出，调用方(render-decision.js)不会崩。
+  console.log(JSON.stringify({
+    engineAvailable: false,
+    degraded: ['bazi', 'ziwei'],
+    reason: '排盘引擎缺失：' + engineScript,
+    hint: '八字轨（四柱/十神/大运流年/紫微）在本机不可用。引擎是第三方组件，其上游仓库已下架，本 skill 不分发其代码；需自行准备并放入 engine/，使其包含 engine/calculator/dist/run-chart.js。',
+  }, null, 2));
+  process.exit(0);
 }
 const args = [
   engineScript,
@@ -77,6 +84,8 @@ if (!chart || !chart.bazi) {
   process.exit(1);
 }
 console.log(JSON.stringify({
+  engineAvailable: true,
+  degraded: [],
   trueSolarTime: {
     applied: tst.applied,
     mode: useTraditionalSolar ? 'traditional' : 'clock',

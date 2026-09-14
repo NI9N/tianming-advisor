@@ -18,6 +18,7 @@
 
 1. **你的决策问题**：是什么决定、在犹豫什么、有没有时间限制。
 2. **出生信息已内置**在 `config.yaml`，首次使用时让用户复核一遍（出生日期/时辰/地点）确认无误。
+3. **出生时辰可以没有** —— 不知道就把 `birth.hour` 留空（**别填 0**）。此时 skill 走降级：星盘只给不吃时辰的太阳/土星/冥王星/北交点，月亮和上升如实说「算不了」，绝不硬凑一个。
 
 ## 决策管线
 
@@ -26,9 +27,9 @@
 ```
 ① 读 config.yaml 基线（出生信息/人格档案）→ 顺带识别判断偏差（哪些犹豫是事实、哪些是内耗噪音）
    ├─ scripts/chart.js  → 八字排盘（四柱/十神/大运流年/格局旺衰）
-   └─ scripts/astro.js   → 西洋星盘（太阳/月亮/上升）
+   └─ scripts/astro.js   → 西洋星盘（定盘层：太阳/土星/冥王星/北交点；时辰层：月亮/上升）
         ↓
-references/ 六份解读规则（shishen / dayun-liunian / jianzhuang / guoxue / xingzuo / wuxing-buyi）
+references/ 七份解读规则（shishen / dayun-liunian / jianzhuang / guoxue / xingzuo / wuxing-buyi / ziwei）
         ↓
 SKILL.md 编排五段式输出（①时机 ②自身匹配 ③风险 ④建议+国学原文 ⑤三检验 + 免责）
 ```
@@ -49,16 +50,17 @@ SKILL.md 编排五段式输出（①时机 ②自身匹配 ③风险 ④建议+�
 ```
 tianming-advisor/
 ├── SKILL.md           Skill 定义：触发条件、执行流程、输出模板
-├── install.ps1        安装脚本（装依赖 + 克隆排盘引擎 + 部署到 ~/.claude/skills/）
+├── install.ps1        安装脚本（装依赖 + 部署到 ~/.claude/skills/，并检测排盘引擎）
 ├── package.json       依赖：astronomia（星盘）+ js-yaml
 ├── scripts/
 │   ├── chart.js       八字排盘（调排盘引擎，字段实测 camelCase）
-│   ├── astro.js       西洋星盘（太阳/月亮/上升，依赖 config.yaml 经纬度）
+│   ├── astro.js       西洋星盘（定盘层 太阳/土星/冥王星/北交点 + 时辰层 月亮/上升）
+│   ├── verify-astro.js 星盘计算验证（基准校验 + 双路径交叉验证 + 降级路径）
 │   └── render-decision.js  决策报告渲染（命盘+decision.json+模板→单文件HTML）
-├── references/        六份解读规则（十神/大运流年/健壮性/国学/星盘/五行补法）
+├── references/        七份解读规则（十神/大运流年/健壮性/国学/星盘/五行补法/紫微）
 ├── docs/              两张内核可视化（自包含 HTML，双击可看）
 ├── config.yaml        个人信息（被 .gitignore 排除，不入库）
-└── engine/            排盘引擎（install 时克隆，不入库）
+└── engine/            排盘引擎（第三方，不入库、不分发，需自备）
 ```
 
 ## 可视化（docs/）
@@ -73,11 +75,11 @@ tianming-advisor/
 ## 安装
 
 1. 克隆本仓库：`git clone https://github.com/NI9N/tianming-advisor.git`
-2. 补一份 `config.yaml`（出生日期/时辰/地点/人格基线，见下方「隐私」说明）
+2. 补一份 `config.yaml`（出生日期/时辰/地点/人格基线，见下方「隐私」说明）。**不知道出生时辰就把 `birth.hour` / `birth.minute` 留空**（写成 `hour:` 后面什么都不填即可）—— 别填 0，填 0 会被当成真的子时。
 3. 运行 `.\install.ps1`：
    - `npm install`（astronomia + js-yaml）
-   - 自动克隆排盘引擎 `bazi-ziwei-skill`（MIT）到 `engine/`
    - 部署到 `~/.claude/skills/tianming-advisor/`
+   - 检测排盘引擎；缺失会给出提示，但**不阻断安装**（见下方「排盘引擎」）
 
 安装后，在新会话里说「用天命顾问看看该不该…」即可触发。
 
@@ -89,7 +91,35 @@ tianming-advisor/
 
 - [astronomia](https://www.npmjs.com/package/astronomia) ^4.2.0 — 西洋占星计算
 - js-yaml ^4.1.0 — 读取 config.yaml
-- [bazi-ziwei-skill](https://github.com/dzcmemory-web/bazi-ziwei-skill)（MIT）— 八字排盘引擎，安装时克隆到 `engine/`，不入库
+- 八字排盘引擎 — **第三方组件，需自备**，见下节
+
+## 排盘引擎（需自备）
+
+八字排盘依赖第三方引擎 `bazi-ziwei-skill`（MIT）。**该引擎的上游仓库已下架**，本仓库**不包含、也不分发**它的代码（尊重原作者意愿）。
+
+因此 skill 有两种状态：
+
+| 状态 | 判定 | 能做什么 |
+|---|---|---|
+| **完整** | `engine/calculator/dist/run-chart.js` 存在 | 八字轨 + 星盘轨全部可用 |
+| **降级** | 引擎文件不在 | 八字轨（四柱/十神/大运流年/紫微）**算不了**；星盘轨、人格档案、健壮性认知系统、国学框架**照常可用** |
+
+引擎缺失时 `chart.js` **不会报错退出**，而是输出 `"engineAvailable": false`，skill 据此只讲能讲的那部分 —— 跟「没有出生时辰」是同一套降级思路。
+
+已有引擎的，放进 `engine/` 即可（需含 `engine/calculator/dist/run-chart.js`）。
+
+## 没有出生时辰怎么办
+
+月亮和上升**几小时就换一个星座**（上升约 2 小时一换），所以没有出生时辰时它们算不准。skill 的处理是**分层降级**，而不是硬凑：
+
+| 层 | 维度 | 无时辰时 |
+|---|---|---|
+| **定盘层** | 太阳、土星、冥王星、北交点 | 照常给结论（公转慢，不吃时辰） |
+| **时辰层** | 月亮、上升 | **不给** —— 如实说「算不了」 |
+
+用法：`config.yaml` 里把 `birth.hour` / `birth.minute` **留空**即可（别填 0）。脚本会把月亮/上升输出为 `null` 并在 `degraded` 字段标注，skill 据此只讲能讲的那部分。
+
+> 这是刻意设计：硬凑出来的上升有极大概率是错的，而用户**没法从文字上看出它是错的** —— 那比不说更糟。
 
 ## 时辰边界
 
@@ -106,6 +136,8 @@ tianming-advisor/
 
 - 它**不指路**——信息得你诚实、详细地给，它才帮得上。
 - 它是**理清思路的工具**，最后的决定权在你手上。
+- **没有出生时辰时，月亮和上升算不了**（它们几小时就换一个星座）。这时星盘只给太阳/土星/冥王星/北交点——skill 会如实说明，不会硬凑。
+- **只算星座，不算宫位与相位**——所以「土星/冥王星落在你生活的哪个领域」本 skill 给不出。冥王星更是**世代指标**（整代人共享同一星座），别当个人特质看。
 - 命理是传统文化参考，**非科学依据**；不替代医疗、法律等专业意见。
 
 ## 示例输出（虚构演示数据）
@@ -122,6 +154,7 @@ tianming-advisor/
 当前大运  丁亥（劫财/七杀）37-46 岁   流年 2026 丙午
 地支关系  三会火方（午未巳）/ 午未六合 / 未戌相刑 / 拱合火局
 星盘      太阳巨蟹 27° / 月亮双子 29° / 上升处女 19°
+          土星摩羯 20° / 冥王星射手 12° / 北交点金牛 8°
 ```
 
 **五段式建议（skill 编排输出）**

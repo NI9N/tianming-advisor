@@ -89,10 +89,12 @@ function glossStars(stars) {
   return stars.map((s) => (STAR_GLOSS[s] ? `${s}=${STAR_GLOSS[s]}` : s)).join('；');
 }
 
-// 从 chart + astro 推导命盘背景条 (六卡)
+// 从 chart + astro 推导命盘背景条 (八卡)
 function deriveStrip(chart, astro, currentYear) {
   const out = {};
-  const dash = () => '-';
+  // 引擎缺失时不说含糊的「-」，直接说清缺的是什么
+  const noEngine = !!(chart && chart.engineAvailable === false);
+  const dash = () => (noEngine ? '引擎缺失' : '-');
   const bz = chart?.bazi || {};
   const bi = bz.birthInfo || {};
   const en = bz.enrichment || {};
@@ -156,11 +158,17 @@ function deriveStrip(chart, astro, currentYear) {
     out.liunian_note = '';
   }
 
-  // 星盘
+  // 星盘：定盘层(太阳/土星/冥王星/北交点)恒有值；时辰层(月/升)缺时辰时为 null
   const signOf = (x) => (x && x.sign) || '-';
+  const degraded = (astro && astro.degraded) || [];
+  const noTime = degraded.includes('moon');
   out.sun = signOf(astro?.sun);
-  out.moon = signOf(astro?.moon);
-  out.rising = signOf(astro?.rising);
+  out.saturn = signOf(astro?.saturn);
+  out.pluto = signOf(astro?.pluto);
+  out.northNode = signOf(astro?.northNode);
+  // 缺信息时不显示裸「-」——说清缺的是什么
+  out.moon = degraded.includes('moon') ? '需时辰' : signOf(astro?.moon);
+  out.rising = degraded.includes('rising') ? (noTime ? '需时辰' : '需地点') : signOf(astro?.rising);
 
   // 紫微：当前大限 + 流年落宫
   const zw = chart?.ziwei || {};
@@ -212,7 +220,7 @@ function buildFlat(chart, astro, decision, currentYear) {
   data['m.code'] = meta.code || `TM-${currentYear}${new Date().getMonth() + 1 < 10 ? '0' + (new Date().getMonth() + 1) : new Date().getMonth() + 1}`;
 
   // 命盘背景条
-  for (const k of ['pillars', 'daymaster_geju', 'shishen_line', 'wangshuai_verdict', 'wangshuai_score', 'tiaohou', 'dayun', 'dayun_note', 'liunian_label', 'liunian', 'liunian_note', 'sun', 'moon', 'rising', 'daxian', 'daxian_note', 'liunian_gong', 'liunian_gong_note']) {
+  for (const k of ['pillars', 'daymaster_geju', 'shishen_line', 'wangshuai_verdict', 'wangshuai_score', 'tiaohou', 'dayun', 'dayun_note', 'liunian_label', 'liunian', 'liunian_note', 'sun', 'saturn', 'pluto', 'northNode', 'moon', 'rising', 'daxian', 'daxian_note', 'liunian_gong', 'liunian_gong_note']) {
     data[`c.${k}`] = strip[k];
   }
 

@@ -14,17 +14,13 @@ function Invoke-NpmInstall([string]$dir) {
   }
 }
 
-# 确保排盘引擎存在（engine/ 不入库，安装时克隆）
+# 检测排盘引擎（engine/ 不入库、不分发 —— 其上游仓库已下架，本仓库不含其代码）
+# 缺失不阻断安装：skill 会走降级（八字轨不可用，星盘轨照常），详见 README「排盘引擎」
 $engineScript = Join-Path $src "engine\calculator\dist\run-chart.js"
 if (-not (Test-Path $engineScript)) {
-  # 有残留的不完整 engine/ 就先清掉，否则 git clone 会被"非空目录"卡死
-  $engineDir = Join-Path $src "engine"
-  if (Test-Path $engineDir) { Remove-Item -Recurse -Force $engineDir -Confirm:$false }
-  Write-Host "排盘引擎缺失，克隆 bazi-ziwei-skill ..."
-  Push-Location $src
-  git clone --depth 1 https://github.com/dzcmemory-web/bazi-ziwei-skill.git engine
-  Pop-Location
-  if (-not (Test-Path $engineScript)) { Write-Error "引擎克隆失败：engine/calculator/dist/run-chart.js 仍不存在"; exit 1 }
+  Write-Warning "未检测到排盘引擎（engine\calculator\dist\run-chart.js）"
+  Write-Host "  安装会继续，但八字轨（四柱/十神/大运流年/紫微）不可用 —— skill 会自动降级，只走星盘轨。"
+  Write-Host "  引擎为第三方组件，其上游仓库已下架，本仓库不分发；如需完整功能请自备并放入 engine\。"
 }
 
 # 复制整个 skill 目录到目标（失败即报错退出，不留半成品）
@@ -42,8 +38,9 @@ if (Test-Path $dstGit) { Remove-Item -Recurse -Force $dstGit -Confirm:$false }
 if (-not (Test-Path (Join-Path $dst "node_modules"))) {
   Invoke-NpmInstall $dst
 }
-# 引擎依赖（lunar-typescript）
-if (-not (Test-Path (Join-Path $dst "engine\calculator\node_modules"))) {
-  Invoke-NpmInstall (Join-Path $dst "engine\calculator")
+# 引擎依赖（lunar-typescript）—— 仅在引擎存在时安装
+$dstEngineCalc = Join-Path $dst "engine\calculator"
+if ((Test-Path $dstEngineCalc) -and (-not (Test-Path (Join-Path $dstEngineCalc "node_modules")))) {
+  Invoke-NpmInstall $dstEngineCalc
 }
 Write-Host "已安装到 $dst"
