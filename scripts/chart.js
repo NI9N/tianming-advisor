@@ -139,7 +139,14 @@ function resolveTz(birth) {
   const off = Number(birth && birth.timezone_offset);
   if (off === 8) return 'Asia/Shanghai';
   if (Number.isFinite(off)) {
-    fail(EXIT_CONFIG, 'birth.timezone_offset=' + off + ' 无法唯一映射到 IANA 时区名。请显式写 birth.timezone（如 Asia/Shanghai）。本产品不猜时区。');
+    // 兼容旧配置：把字面 offset 映射成固定偏移时区名（Etc/GMT∓N，符号与直觉相反）
+    // 固定偏移不含夏令时；若出生地实行夏令时，时刻可能差 1 小时 —— 所以给警告，不静默
+    if (Number.isInteger(off) && off >= -14 && off <= 14) {
+      const tzName = 'Etc/GMT' + (off > 0 ? '-' : '+') + Math.abs(off);
+      console.warn('[时区] 未声明 birth.timezone，按 timezone_offset=' + off + ' 使用固定偏移 ' + tzName + '（不含夏令时）。若出生地实行夏令时，建议显式写 birth.timezone。');
+      return tzName;
+    }
+    fail(EXIT_CONFIG, 'birth.timezone_offset=' + off + ' 不是整数，无法映射到固定偏移时区。请显式写 birth.timezone（如 Asia/Kolkata）。');
   }
   fail(EXIT_CONFIG, '缺少 birth.timezone / birth.timezone_offset。');
 }

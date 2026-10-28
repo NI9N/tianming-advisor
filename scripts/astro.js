@@ -94,16 +94,16 @@ if (!b || b.year === undefined || b.month === undefined || b.day === undefined) 
 }
 
 // ---------------------------------------------------------------------------
-// ★ IANA 时区解析（规则与 `scripts/chart.js:139-152` 逐字同源）
+// ★ IANA 时区解析（规则与 `scripts/chart.js` 的 `resolveTz` 同源）
 //   显式 `birth.timezone` 优先；`timezone_offset === 8` 才允许默认成 Asia/Shanghai；
-//   其余**不猜** —— 照抄 chart.js:149 的措辞与退出码语义。
+//   其余整数 offset → 映射成固定偏移时区名 `Etc/GMT∓N`（`'literal'`，`117` 单恢复）
 //
-// ★★ 包根口径 §一-③ · `offsetResolved` 只有两个可达值：**`'iana'`** ／ **`'default-8'`**
-//   **删掉了 `'literal'`**（它从来产不出来 —— `90` 交付 §六-4 自己报的死值）。
-//   为什么是删而不是实现它：**本产品不信任用户写的裸 offset**，
-//   与 `chart.js:149`「本产品不猜时区」是同一条口径 ——
-//   若 `timezone_offset ≠ 8` 且没给 `timezone`，这里是**报错退出**，不是"按字面值算"。
-//   ⇒ 不存在"信任字面 offset"这条分支，所以 `'literal'` 是死值。删。
+// ★★ `offsetResolved` 三个可达值：**`'iana'`** ／ **`'default-8'`** ／ **`'literal'`**
+//   `'literal'` 曾被 `90` 单当死值删掉（当时 offset≠8 直接报错，产不出来）。
+//   `117` 单恢复它，理由变了：老配置只写 `timezone_offset: 9` 的海外用户，
+//   升级后会直接报错跑不了 —— 这是破坏性变更，不该让用户自己改配置来适配。
+//   ⇒ 现在按字面 offset 算，但**必给 warning**（固定偏移不含夏令时，可能差 1 小时）
+//   ⇒ `'literal'` 与 `'iana'` 的区别就是「有没有夏令时规则」，用户据此知道该不该补字段。
 // ---------------------------------------------------------------------------
 function resolveTz(birth) {
   if (birth && typeof birth.timezone === 'string' && birth.timezone.trim()) {
@@ -115,7 +115,14 @@ function resolveTz(birth) {
   const off = Number(birth && birth.timezone_offset);
   if (off === 8) return { tz: 'Asia/Shanghai', resolved: 'default-8' };
   if (Number.isFinite(off)) {
-    fail('birth.timezone_offset=' + off + ' 无法唯一映射到 IANA 时区名。请显式写 birth.timezone（如 Asia/Shanghai）。本产品不猜时区。');
+    // 兼容旧配置：字面 offset → 固定偏移时区名（Etc/GMT∓N，符号与直觉相反）
+    // 固定偏移不含夏令时，故 resolved 标成 'literal'，与 'iana' / 'default-8' 区分
+    if (Number.isInteger(off) && off >= -14 && off <= 14) {
+      const tzName = 'Etc/GMT' + (off > 0 ? '-' : '+') + Math.abs(off);
+      console.warn('[时区] 未声明 birth.timezone，按 timezone_offset=' + off + ' 使用固定偏移 ' + tzName + '（不含夏令时）。若出生地实行夏令时，建议显式写 birth.timezone。');
+      return { tz: tzName, resolved: 'literal' };
+    }
+    fail('birth.timezone_offset=' + off + ' 不是整数，无法映射到固定偏移时区。请显式写 birth.timezone（如 Asia/Kolkata）。');
   }
   fail('缺少 birth.timezone / birth.timezone_offset。');
 }
@@ -288,7 +295,7 @@ const out = {
     // ★ 时区接线新增的三个可复核字段
     timezone: tz,                          // 实际使用的 IANA 时区名
     utcOffsetMinutes: offsetMin,           // 当日该时区的真实偏移（分钟）
-    offsetResolved,                        // 'iana' | 'default-8'（94 单：'literal' 已删，无该分支）
+    offsetResolved,                        // 'iana' | 'default-8' | 'literal'（literal = 按字面 offset，不含夏令时）
     utc: utcDate.toISOString(),
   },
   hasTime,
