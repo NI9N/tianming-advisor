@@ -6,13 +6,38 @@
 //   土星   VSOP87D(date 平黄道) + 地球位置 → 地心化 → 地心黄经
 //   冥王星 pluto.heliocentric(J2000 黄经) → 地心化 → 补黄经岁差 → date
 //   北交点 Meeus ch.47 平均交点公式 (mean node, 非 true node)
-// 时间: config.birth.timezone_offset 为 UTC+ 小时数, 本地钟表时间 → UTC 时刻;
-//       行星位置用 JDE(力学时 TT, 已加 ΔT), 恒星时用 UT 的 JD。
+//
+// ★★ 时区接线 · 本文件是 `tianming-advisor\scripts\astro.js` 的**时区接线版**
+//
+// ┌─ 改了什么（相对开发树那份）───────────────────────────────────────────┐
+// │ 1. **接 IANA 时区解析** —— 规则与 `scripts/chart.js:139-152`    │
+// │    逐字同源：显式 `birth.timezone` → 校验合法性后用；                   │
+// │    没给但 `timezone_offset === 8` → `Asia/Shanghai`；                   │
+// │    其余 → **报错退出，不猜**（照抄 chart.js:149 的措辞与退出码语义）。   │
+// │ 2. **UTC 换算改迭代收敛** —— 用 `lib/bazi/solar-correction.js` 导出的     │
+// │    `getTzOffsetMinutes(utcMs, tz)`，按 `applyCorrection`（`:190-199`）  │
+// │    的同款迭代（1–2 次收敛，硬上限 6 次）。                              │
+// │ 3. **`timezone_offset` 与真实 offset 冲突时必须声明**（不许静默二选一）  │
+// │ 4. **钟表时间不存在时必须声明**（`isNonexistentLocalTime`）              │
+// │ 5. 新增可复核字段：`birth.timezone` / `birth.utcOffsetMinutes` /        │
+// │    `birth.offsetResolved` / `degradedNote`                             │
+// └──────────────────────────────────────────────────────────────────────┘
+//
+// ┌─ ★★ 禁做项 2（本单最大的坑）：不许把「真太阳时」套到星盘上 ────────────┐
+// │ 八字的时柱要**真太阳时**（钟表时 ＋ 夏令时 ＋ 经度修正 ＋ 均时差）         │
+// │ 星盘的上升点**公式里已经含经度**（`ramcDeg = gmstDeg + loc.longitude`），│
+// │ 恒星时基于 **UT**（`A.sidereal.apparent(jd)`）。                        │
+// │ ⇒ 星盘只吃「**绝对时刻（UTC）＋ 经纬度**」。                             │
+// │ ⇒ 再套 `dst + lonMin + eotMin` 会把**经度算两遍**（上升约 15°/度）。      │
+// │ ⇒ 本文件**只接时区**；`equationOfTime` / 经度修正**一个都不进这里**。      │
+// └──────────────────────────────────────────────────────────────────────┘
 //
 // 分层（决定没有出生时辰时给什么）:
 //   定盘层 — 太阳 / 土星 / 冥王星 / 北交点: 公转慢, 不吃时辰, 任何情况都输出
 //   时辰层 — 月亮 / 上升: 吃时辰, 无时辰时输出 null 并记入 degraded
 //   无时辰绝不静默按 0 点算 —— 那会给出一个从输出上根本看不出是假的上升/月亮。
+// 时间: 本地钟表时间 → 经 IANA 时区迭代还原 → UTC 时刻;
+//       行星位置用 JDE(力学时 TT, 已加 ΔT), 恒星时用 UT 的 JD。
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
@@ -21,8 +46,36 @@ const A = require('astronomia');
 // data 是独立子路径, 且外层包了一层 default(ESM→CJS 转译)
 const _data = require('astronomia/data');
 const DATA = _data.default || _data;
+// ★ 时区接线：只**调用**自研链已导出的两个函数，不改 `lib/bazi/solar-correction.js`（禁做项 5）
+// ★★ 包根口径：包根推法统一到 `./pkg-root`（`resolvePkgRoot`）—— 三个脚本同一个 helper。
+//   改前：本文件自己实现了一段「向上找 `lib/bazi/index.js`」，与 `chart.js` 的 `findEngineRoot` 重复，
+//   而 `render-decision.js` 又是第三种（硬编码 `'..','..'`）⇒ 三个脚本三种理解。
+const { resolvePkgRoot } = require('./pkg-root');
+// ⚠️⚠️ 路径必须用**运行时定位**，不能写死 `../../lib` ——
+//   本文件在仓内是 `scripts/astro.js`（`../../lib` = 仓根的 `lib/` ✅），
+//   但入包后被重定向到 `tianming-advisor-clean/scripts/astro.js`（`../../lib` = **包外的兄弟目录** ❌）。
+//   **这正是 `77` 单抓到的 `PKG_ROOT` 同款坑**（文件在不在 ≠ 路径能不能解析）。
+// ⚠️ `TIANMING_ENGINE_ROOT` 环境变量仍然优先（那是 `chart.js` 既有的逃生口，保留）。
+const ENGINE_ROOT = process.env.TIANMING_ENGINE_ROOT
+  ? path.resolve(process.env.TIANMING_ENGINE_ROOT)
+  : resolvePkgRoot(__dirname);
+const { getTzOffsetMinutes, isNonexistentLocalTime } =
+  require(path.join(ENGINE_ROOT, 'lib', 'bazi', 'solar-correction'));
 
-const ROOT = path.resolve(__dirname, '..');
+// ★ 默认 config 的查找根 = 包根（与 `ENGINE_ROOT` 同源，**不再有两套理解**）。
+//
+//   ⚠️⚠️ 90 单曾在这里写过一大段警告：不能写成 `'..','..'`，因为 `verify-astro.js` 靠
+//      「不传 `--config` 时 astro.js 自己去 `ROOT/config.yaml` 找」这个**隐式契约**，
+//      而它的 `ROOT = resolve(__dirname,'..')`（= 包根）。
+//      ⇒ 那时用 `'..'` 是为了**在仓内**也对齐"scripts/ 的上一级"。
+//   ⇒ 94 单统一之后：`resolvePkgRoot()` 在包里 = 包根、在仓里 = 仓根，
+//      **与 verify-astro 自己的 `resolve(__dirname,'..')` 在包里完全一致**（都是包根）。
+//      在仓内两者不同（verify 在开发树 `scripts/` 下 ⇒ 开发树根；本文件在仓内 ⇒ 仓根）——
+//      但 verify-astro 只随开发树跑，不随  跑，所以那条隐式契约不受影响（实测）。
+const ROOT = resolvePkgRoot(__dirname);
+const EXIT_CONFIG = 2;                               // 与 chart.js 的用法/配置错同一套语义
+const fail = (msg) => { console.error(msg); process.exit(EXIT_CONFIG); };
+
 // --config=<path> 指定配置文件(默认 ROOT/config.yaml); verify-astro.js 用它复现降级路径
 const configArg = process.argv.find((a) => a.startsWith('--config='));
 const configPath = configArg ? configArg.slice('--config='.length) : path.join(ROOT, 'config.yaml');
@@ -35,10 +88,38 @@ try {
 }
 const b = config.birth;
 const loc = config.location || {};
-if (!b || b.year === undefined || b.month === undefined || b.day === undefined || b.timezone_offset === undefined) {
-  console.error('config.yaml 缺少必要字段：需要 birth{year,month,day,timezone_offset}。');
-  process.exit(1);
+if (!b || b.year === undefined || b.month === undefined || b.day === undefined) {
+  console.error('config.yaml 缺少必要字段：需要 birth{year,month,day}（时区见下方规则）。');
+  process.exit(EXIT_CONFIG);
 }
+
+// ---------------------------------------------------------------------------
+// ★ IANA 时区解析（规则与 `scripts/chart.js:139-152` 逐字同源）
+//   显式 `birth.timezone` 优先；`timezone_offset === 8` 才允许默认成 Asia/Shanghai；
+//   其余**不猜** —— 照抄 chart.js:149 的措辞与退出码语义。
+//
+// ★★ 包根口径 §一-③ · `offsetResolved` 只有两个可达值：**`'iana'`** ／ **`'default-8'`**
+//   **删掉了 `'literal'`**（它从来产不出来 —— `90` 交付 §六-4 自己报的死值）。
+//   为什么是删而不是实现它：**本产品不信任用户写的裸 offset**，
+//   与 `chart.js:149`「本产品不猜时区」是同一条口径 ——
+//   若 `timezone_offset ≠ 8` 且没给 `timezone`，这里是**报错退出**，不是"按字面值算"。
+//   ⇒ 不存在"信任字面 offset"这条分支，所以 `'literal'` 是死值。删。
+// ---------------------------------------------------------------------------
+function resolveTz(birth) {
+  if (birth && typeof birth.timezone === 'string' && birth.timezone.trim()) {
+    const tz = birth.timezone.trim();
+    try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); }
+    catch (e) { fail('birth.timezone="' + tz + '" 不是有效 IANA 时区名：' + e.message); }
+    return { tz, resolved: 'iana' };
+  }
+  const off = Number(birth && birth.timezone_offset);
+  if (off === 8) return { tz: 'Asia/Shanghai', resolved: 'default-8' };
+  if (Number.isFinite(off)) {
+    fail('birth.timezone_offset=' + off + ' 无法唯一映射到 IANA 时区名。请显式写 birth.timezone（如 Asia/Shanghai）。本产品不猜时区。');
+  }
+  fail('缺少 birth.timezone / birth.timezone_offset。');
+}
+const { tz, resolved: offsetResolved } = resolveTz(b);
 
 // 时辰与出生地都是「可缺」的 —— 缺了走降级, 不报错退出
 const isBlank = (v) => v === undefined || v === null || v === '';
@@ -67,18 +148,50 @@ function signOf(lonDeg) {
   };
 }
 
-// ---- 时间处理 ----
-// localMs: 本地钟表时间 (当作 UTC 毫秒来算)
-const localMs = Date.UTC(b.year, b.month - 1, b.day, hour, minute, 0);
-// 减掉时区偏移(小时×3600s)得到真实的 UTC 时刻
-const utcMs = localMs - b.timezone_offset * 3600 * 1000;
+const warnings = [];
+
+// ---------------------------------------------------------------------------
+// ★ UTC 换算：迭代收敛（`lib/bazi/solar-correction.js` `applyCorrection` 同款）
+//   夏令时切换边界需 1–2 次收敛；硬上限 6 次（与 lib 一致，防止病态配置死循环）。
+//   ★ 这里**只**做时区还原 —— 不加 dst/lonMin/eotMin（禁做项 2：那会把经度算两遍）
+// ---------------------------------------------------------------------------
+const wallMs = Date.UTC(b.year, b.month - 1, b.day, hour, minute, 0);
+let offsetMin = 480;                              // 初始假设 UTC+8（与 lib 的起手式一致）
+let utcMs = wallMs - offsetMin * 60000;
+for (let i = 0; i < 6; i++) {
+  const nextOffset = getTzOffsetMinutes(utcMs, tz);
+  const nextUtc = wallMs - nextOffset * 60000;
+  if (nextUtc === utcMs && nextOffset === offsetMin) break;
+  utcMs = nextUtc;
+  offsetMin = nextOffset;
+}
 const utcDate = new Date(utcMs);
+
+// ★ 时区接线 J90c：配置写的 offset 与当日真实 offset 冲突时**必须喊出来**，
+//   不许静默二选一。仍按**真实值**算（94 单删掉 `'literal'` 后，没有"按字面值算"这条路可走）。
+const declaredOffset = Number(b.timezone_offset);
+if (Number.isFinite(declaredOffset) && declaredOffset * 60 !== offsetMin) {
+  warnings.push(
+    '时区偏移不一致：配置写 timezone_offset=' + declaredOffset +
+    '，而 ' + b.year + '-' + String(b.month).padStart(2, '0') + '-' + String(b.day).padStart(2, '0') +
+    ' 当日 ' + tz + ' 的真实偏移为 UTC' + (offsetMin >= 0 ? '+' : '') + (offsetMin / 60) +
+    ' 小时（' + offsetMin + ' 分钟）。已按真实值计算。'
+  );
+}
+
+// ★ 时区接线 J90d：钟表时间在 tz 下不存在（夏令时春季跳变被跳过的那一小时）
+//   ⇒ **不许报错退出**，但必须 warning。
+if (hasTime && isNonexistentLocalTime(b.year, b.month, b.day, hour, minute, tz)) {
+  warnings.push(
+    '钟表时间不存在：' + b.year + '-' + String(b.month).padStart(2, '0') + '-' + String(b.day).padStart(2, '0') +
+    ' ' + String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0') +
+    ' 在 ' + tz + ' 下不存在（夏令时春季跳变跳过该小时）。已按收敛后的时刻计算。'
+  );
+}
 
 const jd = A.julian.DateToJD(utcDate);     // UT 儒略日 → 用于恒星时
 const jde = A.julian.DateToJDE(utcDate);   // 力学时儒略日 → 用于行星位置
 const T = A.base.J2000Century(jde);        // 距 J2000 的儒略世纪
-
-const warnings = [];
 
 // ---- 太阳（定盘层；一天仅走约 1°, 无时辰时按当日 0 点算）----
 const sunLon = A.solar.apparentLongitude(T) * R2D;
@@ -100,6 +213,7 @@ if (hasTime) {
 }
 
 // ---- 上升（时辰层；约 2 小时换一个星座，最吃时辰）----
+// ★ 公式一个字不许动（90 禁做项 7：Meeus ch.13 那组 atan2）
 let rising = null;
 if (hasTime && hasLocation) {
   // 视恒星时(格林尼治) 秒 → 度 (86400s = 360°, 1° = 240s)
@@ -156,6 +270,13 @@ const degraded = [];
 if (!hasTime) degraded.push('moon', 'rising');
 else if (!hasLocation) degraded.push('rising');
 
+// ★ 时区接线 J90e / User 2026-10-18 裁定「不给就降级，但一定要声明」：
+//   `degraded` 是 JSON 数组，**渲染层不一定显示** ⇒ 另给一句人话，让渲染层能直接显示。
+const degradedNote = degraded.length === 0 ? '' :
+  (degraded.length === 2
+    ? '本次未提供出生时辰，月亮与上升星座不可用（已按缺失处理，未按 0 点推算）。'
+    : '本次未提供出生地经纬度，上升星座不可用（月亮可用）。');
+
 const out = {
   birth: {
     year: b.year,
@@ -164,11 +285,16 @@ const out = {
     hour: hasTime ? hour : null,
     minute: hasTime ? minute : null,
     timezone_offset: b.timezone_offset,
+    // ★ 时区接线新增的三个可复核字段
+    timezone: tz,                          // 实际使用的 IANA 时区名
+    utcOffsetMinutes: offsetMin,           // 当日该时区的真实偏移（分钟）
+    offsetResolved,                        // 'iana' | 'default-8'（94 单：'literal' 已删，无该分支）
     utc: utcDate.toISOString(),
   },
   hasTime,
   hasLocation,
   degraded,
+  degradedNote,   // ★ 给人看的声明位（J90e）
   sun,
   saturn,
   pluto,
@@ -176,7 +302,7 @@ const out = {
   moon,    // 无时辰 → null
   rising,  // 无时辰或缺经纬度 → null
   warnings,
-  note: '黄道经度 0°=白羊, 每 30°一宫。太阳用视黄经(真春分点), 月亮用地心黄经(平春分点), 上升按 Meeus ch.13 atan2 公式; 土星用 VSOP87D(date 平黄道), 冥王星取 J2000 黄经后补黄经岁差对齐到 date, 北交点为 Meeus 平均交点(mean node, 非 true node); 行星位置基于力学时 JDE, 恒星时基于 UT。degraded 列出因缺出生时辰/出生地而不可用的维度(其值为 null)。',
+  note: '黄道经度 0°=白羊, 每 30°一宫。太阳用视黄经(真春分点), 月亮用地心黄经(平春分点), 上升按 Meeus ch.13 atan2 公式; 土星用 VSOP87D(date 平黄道), 冥王星取 J2000 黄经后补黄经岁差对齐到 date, 北交点为 Meeus 平均交点(mean node, 非 true node); 行星位置基于力学时 JDE, 恒星时基于 UT。degraded 列出因缺出生时辰/出生地而不可用的维度(其值为 null)。★ 时区接线：UTC 时刻由 IANA 时区经迭代收敛还原（夏令时切换边界 1–2 次收敛，上限 6 次）；本文件只接时区，不做真太阳时的经度/均时差修正（上升公式已含经度，再套会把经度算两遍）。',
 };
 
 // 四舍五入 longitude/signDegree 到 4 位小数, 便于阅读

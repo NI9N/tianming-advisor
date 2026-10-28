@@ -1,0 +1,26 @@
+# 天命顾问 · 个人配置模板
+# 用法：复制本文件为 config.yaml，把值填成你自己的。
+#
+# ⚠️ config.yaml 已被 .gitignore 排除，不会进 git 仓库；
+#    但压缩软件不读 .gitignore —— 打包分享前请手动确认包里没有 config.yaml。
+# ⚠️ 不知道出生时辰：hour / minute 留空即可（后面什么都不写），别填 0，填 0 会被当成真的子时。
+
+birth:
+  year:               # 阳历年份，如 1990
+  month:
+  day:
+  hour:               # 24 小时制，本地钟表时间。不确定就留空
+  minute:
+  gender:             # male / female
+  timezone_offset: 8  # 中国标准时间 UTC+8
+
+location:
+  name:               # 常住城市，如 北京市朝阳区
+  latitude:           # 纬度，如 39.90
+  longitude:          # 经度，如 116.41
+
+personality:
+  mbti:               # 如 INFP-T（带 -T 为动荡型，解读方式不同）
+  holland:            # 如 ASE（霍兰德三码）
+  drivers: []         # 如 [稳定安全, 专业精进, 生活平衡]
+  traits: []          # 自定义特质，一行一条

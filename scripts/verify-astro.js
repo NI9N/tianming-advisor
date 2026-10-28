@@ -67,7 +67,7 @@ console.log('\n[2] 冥王星双路径交叉验证（两条独立算法应互相�
   const earthP = new A.planetposition.Planet(DATA.vsop87Dearth);
   const dates = [
     ['J2000.0', new Date(Date.UTC(2000, 0, 1, 12, 0, 0))],
-    ['出生盘 2004-05-04', new Date(Date.UTC(2004, 4, 4, 3, 0, 0))],
+    ['出生盘 1990-07-20', new Date(Date.UTC(1990, 6, 20, 1, 30, 0))],
     ['当下 2026-09-14', new Date(Date.UTC(2026, 8, 14, 0, 0, 0))],
   ];
   for (const [label, d] of dates) {
@@ -107,8 +107,8 @@ console.log('\n[4] 降级路径（临时 config 置空 hour/minute）');
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tianming-verify-'));
   try {
     const cfg = {
-      birth: { year: 2004, month: 5, day: 4, hour: null, minute: null, timezone_offset: 8 },
-      location: { latitude: 22.54, longitude: 114.06 },
+      birth: { year: 1990, month: 7, day: 20, hour: null, minute: null, timezone_offset: 8 },
+      location: { latitude: 39.90, longitude: 116.41 },   // 北京，与 README 虚构示例一致
     };
     const cfgPath = path.join(tmpDir, 'config.yaml');
     fs.writeFileSync(cfgPath, yaml.dump(cfg), 'utf8');
@@ -159,7 +159,7 @@ console.log('\n[5] 有辰路径（本机 config.yaml，若存在）');
       } else {
         console.log('  [--] 跳过：本机 config.yaml 未填时辰（当前走降级模式）');
       }
-      console.log(`       快照: 日${out.sun.sign} 土${out.saturn.sign} 冥${out.pluto.sign} 交${out.northNode.sign}`);
+      console.log(`       快照: 日${out.sun.sign} 土${out.saturn.sign} 冥${out.pluto.sign} 交${out.northNode.sign}   ← 本机个人数据，勿粘贴外发`);
     } catch (err) {
       bad('本机 config.yaml 可正常排盘', err.message.slice(0, 200));
     }

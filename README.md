@@ -50,17 +50,20 @@ SKILL.md 编排五段式输出（①时机 ②自身匹配 ③风险 ④建议+�
 ```
 tianming-advisor/
 ├── SKILL.md           Skill 定义：触发条件、执行流程、输出模板
-├── install.ps1        安装脚本（装依赖 + 部署到 ~/.claude/skills/，并检测排盘引擎）
-├── package.json       依赖：astronomia（星盘）+ js-yaml
+├── install.ps1        安装脚本（装依赖 + 部署到 ~/.claude/skills/，并校验排盘链完整性）
+├── package.json       依赖：astronomia（星盘）+ js-yaml + iztro（紫微）+ lunar-javascript（历法）
+├── run-chart.js       排盘链入口（八字 + 紫微 + 解读层编排）
+├── anchor-resolver.js 解读层锚点 resolver（增强层，当前渲染路径未接线）
 ├── scripts/
-│   ├── chart.js       八字排盘（调排盘引擎，字段实测 camelCase）
+│   ├── chart.js       八字排盘（调本包自研排盘链，字段实测 camelCase）
+│   ├── pkg-root.js    包根定位 helper（chart.js / astro.js 共用）
 │   ├── astro.js       西洋星盘（定盘层 太阳/土星/冥王星/北交点 + 时辰层 月亮/上升）
 │   ├── verify-astro.js 星盘计算验证（基准校验 + 双路径交叉验证 + 降级路径）
 │   └── render-decision.js  决策报告渲染（命盘+decision.json+模板→单文件HTML）
-├── references/        七份解读规则（十神/大运流年/健壮性/国学/星盘/五行补法/紫微）
+├── references/        八份解读规则（十神/大运流年/健壮性/国学/星盘/五行补法/紫微/神煞）
 ├── docs/              两张内核可视化（自包含 HTML，双击可看）
-├── config.yaml        个人信息（被 .gitignore 排除，不入库）
-└── engine/            排盘引擎（第三方，不入库、不分发，需自备）
+├── config.yaml        个人信息（被 .gitignore 排除，不入库、不入分发包）
+└── lib/               排盘链（本包自研；八字+紫微+解读层）
 ```
 
 ## 可视化（docs/）
@@ -74,10 +77,10 @@ tianming-advisor/
 
 ## 安装
 
-1. 克隆本仓库：`git clone https://github.com/NI9N/tianming-advisor.git`
+1. 把本包解压到任意目录（源码齐全，不需要再下载）。
 2. 补一份 `config.yaml`（出生日期/时辰/地点/人格基线，见下方「隐私」说明）。**不知道出生时辰就把 `birth.hour` / `birth.minute` 留空**（写成 `hour:` 后面什么都不填即可）—— 别填 0，填 0 会被当成真的子时。
 3. 运行 `.\install.ps1`：
-   - `npm install`（astronomia + js-yaml）
+   - `npm install`（依赖见上方「依赖」清单）
    - 部署到 `~/.claude/skills/tianming-advisor/`
    - 检测排盘引擎；缺失会给出提示，但**不阻断安装**（见下方「排盘引擎」）
 
@@ -91,22 +94,14 @@ tianming-advisor/
 
 - [astronomia](https://www.npmjs.com/package/astronomia) ^4.2.0 — 西洋占星计算
 - js-yaml ^4.1.0 — 读取 config.yaml
-- 八字排盘引擎 — **第三方组件，需自备**，见下节
+- [lunar-javascript](https://www.npmjs.com/package/lunar-javascript) 1.7.7 — 八字历法（MIT）
+- [iztro](https://www.npmjs.com/package/iztro) ^2.6.1 — 紫微斗数（MIT）
 
-## 排盘引擎（需自备）
+## 排盘引擎（内置）
 
-八字排盘依赖第三方引擎 `bazi-ziwei-skill`（MIT）。**该引擎的上游仓库已下架**，本仓库**不包含、也不分发**它的代码（尊重原作者意愿）。
+八字排盘引擎为本包自研（`lib/` ＋ 根目录 `run-chart.js`），不含第三方排盘引擎代码，随包内置、无需自备。
 
-因此 skill 有两种状态：
-
-| 状态 | 判定 | 能做什么 |
-|---|---|---|
-| **完整** | `engine/calculator/dist/run-chart.js` 存在 | 八字轨 + 星盘轨全部可用 |
-| **降级** | 引擎文件不在 | 八字轨（四柱/十神/大运流年/紫微）**算不了**；星盘轨、人格档案、健壮性认知系统、国学框架**照常可用** |
-
-引擎缺失时 `chart.js` **不会报错退出**，而是输出 `"engineAvailable": false`，skill 据此只讲能讲的那部分 —— 跟「没有出生时辰」是同一套降级思路。
-
-已有引擎的，放进 `engine/` 即可（需含 `engine/calculator/dist/run-chart.js`）。
+引擎随包自带，无需额外准备。`chart.js` 仍保留的降级只有「缺出生时辰」：`birth.hour` 留空时，时柱输出 `null` 且 `degraded` 含 `hour`，前三柱照常可算 —— 与星盘轨「时辰层」是同一套降级思路。
 
 ## 没有出生时辰怎么办
 
@@ -124,6 +119,17 @@ tianming-advisor/
 ## 时辰边界
 
 八字排盘**默认启用真太阳时校正**（`chart.js` 的 `useTraditionalSolar` 默认 `true`）。校正按出生地经度（`config.yaml` 的 `location.longitude`）换算偏移——每偏西标准经线 120°E 一度约慢 4 分钟；出生时刻恰逢时辰边界时，校正可能让时辰柱翻到前一柱，属精准化而非误差。如需改回钟表时排盘，设 `useTraditionalSolar: false`。详见 SKILL.md「时辰边界说明」。
+
+## 闰月口径（紫微斗数）
+
+闰月出生的人，紫微斗数有两种流派：
+
+| 流派 | 规则 | 本产品 |
+|---|---|---|
+| **折半法** | 闰月前 15 天归上月，第 16 天起归下月 | ✅ 采用（当代主流） |
+| **整月法** | 整闰月归上月 | ❌ 不采用（《紫微斗数全书》原文，少数派） |
+
+两者在闰月段出生者身上命宫差一格，**非 bug**，是流派分歧。自研链通过 `iztro.fixLeap` 显式控制（见 `lib/ziwei/index.js`），默认为折半法。
 
 ## 和模板算命差在哪
 
@@ -154,7 +160,7 @@ tianming-advisor/
 当前大运  丁亥（劫财/七杀）37-46 岁   流年 2026 丙午
 地支关系  三会火方（午未巳）/ 午未六合 / 未戌相刑 / 拱合火局
 星盘      太阳巨蟹 27° / 月亮双子 29° / 上升处女 19°
-          土星摩羯 20° / 冥王星射手 12° / 北交点金牛 8°
+          土星摩羯 22° / 冥王星天蝎 15° / 北交点水瓶 8°
 ```
 
 **五段式建议（skill 编排输出）**
