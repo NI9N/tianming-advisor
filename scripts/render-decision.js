@@ -92,9 +92,8 @@ function glossStars(stars) {
 // 从 chart + astro 推导命盘背景条 (八卡)
 function deriveStrip(chart, astro, currentYear) {
   const out = {};
-  // 排盘链文件缺失时不说含糊的「-」，直接说清缺的是什么
-  const noEngine = !!(chart && chart.engineAvailable === false);
-  const dash = () => (noEngine ? '排盘链缺失' : '-');
+  // 缺值时统一显示「-」。排盘链缺失属硬失败（chart.js exit 2），走不到这里，故无「引擎缺失」分支。
+  const dash = () => '-';
   const bz = chart?.bazi || {};
   const bi = bz.birthInfo || {};
   const en = bz.enrichment || {};

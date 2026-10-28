@@ -82,7 +82,7 @@ tianming-advisor/
 3. 运行 `.\install.ps1`：
    - `npm install`（依赖见上方「依赖」清单）
    - 部署到 `~/.claude/skills/tianming-advisor/`
-   - 检测排盘引擎；缺失会给出提示，但**不阻断安装**（见下方「排盘引擎」）
+   - 校验包完整性：`run-chart.js` + `lib/bazi/index.js` 缺失时**直接报错退出**，不继续安装
 
 安装后，在新会话里说「用天命顾问看看该不该…」即可触发。
 
@@ -99,9 +99,18 @@ tianming-advisor/
 
 ## 排盘引擎（内置）
 
-八字排盘引擎为本包自研（`lib/` ＋ 根目录 `run-chart.js`），不含第三方排盘引擎代码，随包内置、无需自备。
+**核心算法依赖两个 MIT 协议的 npm 包**：
+- `lunar-javascript` 1.7.7 — 八字历法（四柱干支、节气、闰月）
+- `iztro` ^2.6.1 — 紫微斗数（十二宫、四化、星曜）
 
-引擎随包自带，无需额外准备。`chart.js` 仍保留的降级只有「缺出生时辰」：`birth.hour` 留空时，时柱输出 `null` 且 `degraded` 含 `hour`，前三柱照常可算 —— 与星盘轨「时辰层」是同一套降级思路。
+本包在此之上自研的部分：
+- `lib/enrich/` — 格局判定、旺衰、调候用神、五行统计
+- `run-chart.js` — 排盘编排入口（串联八字 + 紫微 + 真太阳时校正）
+- `lib/bazi/solar-correction.js` — 真太阳时校正
+
+全部随包内置；`install.ps1` **首次安装时**自动执行 `npm install` 拉取上述 npm 包，无需额外准备。
+
+`chart.js` 唯一的降级是「缺出生时辰」：`birth.hour` 留空时，时柱输出 `null` 且 `degraded` 含 `hour`，前三柱照常可算 —— 与星盘轨「时辰层」是同一套降级思路。**排盘链文件缺失不属于降级，是硬失败（exit 2）。**
 
 ## 没有出生时辰怎么办
 

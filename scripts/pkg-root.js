@@ -66,8 +66,8 @@ function resolvePkgRoot(fromDir) {
 
   // ③ 都找不到 ⇒ 报错，不许回退
   throw new Error(
-    'resolvePkgRoot: 找不到包根（向上 ' + MAX_UP + ' 层都没见到 PACKAGING-NOTES.md，' +
-    '也没见到 run-chart.js + lib/bazi/index.js）。\n' +
+    '包不完整：未找到自研排盘链（resolvePkgRoot 向上 ' + MAX_UP + ' 层都没见到 PACKAGING-NOTES.md，' +
+    '也没见到 run-chart.js + lib/bazi/index.js）。请重新解压完整包。\n' +
     '  起点：' + path.resolve(fromDir) + '\n' +
     '  试过的目录（' + tried.length + ' 个）：\n' +
     tried.map((x) => '    - ' + x).join('\n')

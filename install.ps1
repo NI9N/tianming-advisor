@@ -31,7 +31,18 @@ try {
   exit 1
 }
 # 根依赖（astronomia + js-yaml + iztro + lunar-javascript）
-if (-not (Test-Path (Join-Path $dst "node_modules"))) {
+# 逐个校验，而不是只看 node_modules 目录在不在：
+# 若上次装到一半中断，目录还在但包不全，此时跳过安装会导致运行时「找不到模块」
+$pkgJson = [System.IO.File]::ReadAllText((Join-Path $dst "package.json"), [System.Text.Encoding]::UTF8)
+$requiredDeps = ($pkgJson | ConvertFrom-Json).dependencies.PSObject.Properties.Name
+$missing = @()
+foreach ($dep in $requiredDeps) {
+  if (-not (Test-Path (Join-Path $dst "node_modules\$dep") -PathType Container)) {
+    $missing += $dep
+  }
+}
+if ($missing.Count -gt 0) {
+  Write-Host "检测到缺失依赖：$($missing -join ', ') —— 开始安装"
   Invoke-NpmInstall $dst
 }
 Write-Host "已安装到 $dst"
