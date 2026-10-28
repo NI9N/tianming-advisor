@@ -1,3 +1,4 @@
 node_modules/
 engine/
 config.yaml
+.tmp/

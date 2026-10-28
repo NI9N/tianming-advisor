@@ -92,9 +92,9 @@ function glossStars(stars) {
 // 从 chart + astro 推导命盘背景条 (八卡)
 function deriveStrip(chart, astro, currentYear) {
   const out = {};
-  // 引擎缺失时不说含糊的「-」，直接说清缺的是什么
+  // 排盘链文件缺失时不说含糊的「-」，直接说清缺的是什么
   const noEngine = !!(chart && chart.engineAvailable === false);
-  const dash = () => (noEngine ? '引擎缺失' : '-');
+  const dash = () => (noEngine ? '排盘链缺失' : '-');
   const bz = chart?.bazi || {};
   const bi = bz.birthInfo || {};
   const en = bz.enrichment || {};
