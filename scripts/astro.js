@@ -76,14 +76,22 @@ const ROOT = resolvePkgRoot(__dirname);
 const EXIT_CONFIG = 2;                               // 与 chart.js 的用法/配置错同一套语义
 const fail = (msg) => { console.error(msg); process.exit(EXIT_CONFIG); };
 
-// --config=<path> 指定配置文件(默认 ROOT/config.yaml); verify-astro.js 用它复现降级路径
+// 配置路径优先级：--config=<path> > TIANMING_CONFIG 环境变量 > ROOT/config.yaml
+//   · --config 最高：verify-astro.js 靠它复现降级路径，不能被环境变量顶掉
+//   · TIANMING_CONFIG 次之：与 scripts/chart.js 的 loadConfig 对齐。
+//     否则 render-decision.js 自动排盘时 chart 读 env、astro 读包根，
+//     两个引擎拿到两份不同配置，同一份报告里紫微说「无时辰」、星盘却有月亮上升。
+//   · 都无则回落 ROOT/config.yaml（粉丝常态：配置就在包根）
 const configArg = process.argv.find((a) => a.startsWith('--config='));
-const configPath = configArg ? configArg.slice('--config='.length) : path.join(ROOT, 'config.yaml');
+const envConfig = process.env.TIANMING_CONFIG;
+const configPath = configArg
+  ? configArg.slice('--config='.length)
+  : (envConfig || path.join(ROOT, 'config.yaml'));
 let config;
 try {
   config = yaml.load(fs.readFileSync(configPath, 'utf8'));
 } catch (err) {
-  console.error('读取 config.yaml 失败：' + err.message + '\n路径：' + configPath);
+  console.error('读取配置文件失败：' + err.message + '\n路径：' + configPath);
   process.exit(1);
 }
 const b = config.birth;

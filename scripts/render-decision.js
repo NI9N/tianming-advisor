@@ -108,6 +108,27 @@ function deriveStrip(chart, astro, currentYear) {
     out.pillars = dash();
   }
 
+  // 真太阳时（钟表时间 → 真太阳时；缺时辰时无此项）
+  // 排盘用真太阳时定时柱，但用户只知道自己填的钟表时间 —— 不展示修正过程，
+  // 「11:00 出生却得巳时柱」看起来就像算错了。故把修正结果与边界风险一并亮出来。
+  // ⚠️ 判据取「有没有时柱」：缺时辰时 chart.js 仍会算出 trueSolarTime（把 null 当 0，
+  //    产出前一日 23:39），直接展示会误导。
+  const tst = siZhu.hour ? bi.trueSolarTime : null;
+  if (tst && tst.applied && tst.adjustedBirth) {
+    const ab = tst.adjustedBirth;
+    out.truesolar = String(ab.hour).padStart(2, '0') + ':' + String(ab.minute).padStart(2, '0');
+    const mins = Math.round(tst.totalMinutes || 0);
+    const sign = mins >= 0 ? '+' : '−';
+    const shichen = siZhu.hour?.zhi || '';
+    out.truesolar_note = (shichen ? shichen + '时 · ' : '') + '修正 ' + sign + Math.abs(mins) + ' 分';
+    if (tst.boundary && tst.boundary.nearBoundary) {
+      out.truesolar_note += ' · 距时辰边界 ' + tst.boundary.minutesToBoundary + ' 分';
+    }
+  } else {
+    out.truesolar = dash();
+    out.truesolar_note = '';
+  }
+
   // 日主 · 格局
   const daymaster = siZhu.day?.gan || '';
   const geju = en.格局?.primary || '';
@@ -219,7 +240,7 @@ function buildFlat(chart, astro, decision, currentYear) {
   data['m.code'] = meta.code || `TM-${currentYear}${new Date().getMonth() + 1 < 10 ? '0' + (new Date().getMonth() + 1) : new Date().getMonth() + 1}`;
 
   // 命盘背景条
-  for (const k of ['pillars', 'daymaster_geju', 'shishen_line', 'wangshuai_verdict', 'wangshuai_score', 'tiaohou', 'dayun', 'dayun_note', 'liunian_label', 'liunian', 'liunian_note', 'sun', 'saturn', 'pluto', 'northNode', 'moon', 'rising', 'daxian', 'daxian_note', 'liunian_gong', 'liunian_gong_note']) {
+  for (const k of ['pillars', 'truesolar', 'truesolar_note', 'daymaster_geju', 'shishen_line', 'wangshuai_verdict', 'wangshuai_score', 'tiaohou', 'dayun', 'dayun_note', 'liunian_label', 'liunian', 'liunian_note', 'sun', 'saturn', 'pluto', 'northNode', 'moon', 'rising', 'daxian', 'daxian_note', 'liunian_gong', 'liunian_gong_note']) {
     data[`c.${k}`] = strip[k];
   }
 

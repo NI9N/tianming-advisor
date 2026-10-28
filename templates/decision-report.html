@@ -103,7 +103,8 @@
   }
   .decision-strip {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    /* 9 张卡（四柱/真太阳时/日主格局/旺衰/大运/流年/星盘/紫微大限/流年命宫）→ 3×3 整齐 */
+    grid-template-columns: repeat(3, 1fr);
     gap: 8px;
     margin-bottom: 20px;
   }
@@ -267,6 +268,11 @@
     <div class="data-card">
       <div class="label">四柱</div>
       <div class="value pillars">{{c.pillars}}</div>
+    </div>
+    <div class="data-card">
+      <div class="label">真太阳时</div>
+      <div class="value">{{c.truesolar}}</div>
+      <div class="conf">{{c.truesolar_note}}</div>
     </div>
     <div class="data-card">
       <div class="label">日主 · 格局</div>
